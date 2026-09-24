@@ -1,5 +1,7 @@
 # xtce-gs
 
+[![CI](https://github.com/RustSpaceLab/xtce-gs/actions/workflows/ci.yml/badge.svg)](https://github.com/RustSpaceLab/xtce-gs/actions/workflows/ci.yml)
+
 A ground station in one binary: a socket, an XTCE definition, and a window. Part of
 [RustSpaceLab](https://github.com/RustSpaceLab), built on
 [`xtce-rs`](https://github.com/RustSpaceLab/xtce-rs).
