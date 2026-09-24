@@ -1,0 +1,17 @@
+[package]
+name = "xtce-gs-link"
+description = "Downlink acquisition: sockets, CCSDS transfer frames, Reed-Solomon and CSP"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+xtce-gs-core.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "io-util", "fs"] }

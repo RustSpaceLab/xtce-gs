@@ -1,0 +1,24 @@
+[package]
+name = "xtce-gs-cli"
+description = "Command line for the ground station: run, replay, export, probe"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "xtce-gs"
+path = "src/main.rs"
+
+[dependencies]
+xtce-gs-core.workspace = true
+xtce-gs-link.workspace = true
+xtce-gs-engine.workspace = true
+xtce-gs-gui.workspace = true
+xtce-model.workspace = true
+xtce-decode.workspace = true
+clap.workspace = true
+tokio.workspace = true
+thiserror.workspace = true

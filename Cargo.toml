@@ -1,0 +1,58 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+# egui 0.35 sets this floor, not this project: `xtce-rs` and `xtce-flight` still declare 1.85
+# and nothing here needs a newer language feature. Raise it only when a dependency forces it,
+# and say which one — a version number with no reason behind it is the kind of drift that
+# makes a downstream build fail for no visible cause.
+rust-version = "1.92"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/RustSpaceLab/xtce-gs"
+authors = ["Maciej Myszkiewicz"]
+
+[workspace.dependencies]
+xtce-gs-core = { path = "crates/xtce-gs-core", version = "0.1.0" }
+xtce-gs-link = { path = "crates/xtce-gs-link", version = "0.1.0" }
+xtce-gs-engine = { path = "crates/xtce-gs-engine", version = "0.1.0" }
+xtce-gs-gui = { path = "crates/xtce-gs-gui", version = "0.1.0" }
+
+# Pinned to a revision, not a branch, and not a path. `xtce-rs` is where the decoder lives and
+# this repository is built against one state of it; a moving dependency would mean an
+# unrelated commit there breaks a build here, and a path dependency would mean the build works
+# only on the machine that has both checkouts. `xtce-flight` pins the same way, in two files.
+#
+# Bump both together, in the same commit as the change that needed them, and push `xtce-rs`
+# first — cargo cannot fetch a commit that is not on the remote.
+xtce-model = { git = "https://github.com/RustSpaceLab/xtce-rs", rev = "e45784b28a677f1baea100a6fc6e4554a417931a" }
+xtce-decode = { git = "https://github.com/RustSpaceLab/xtce-rs", rev = "e45784b28a677f1baea100a6fc6e4554a417931a" }
+
+# Keep this list short and justified — see CONTRIBUTING.md rule 7. Every entry below names
+# the thing it does that this project will not do by hand.
+#
+# tokio      one reactor for UDP, TCP and a file replay that has to keep its own clock
+# eframe     a window, a GL context and an event loop; egui alone draws but does not run
+# egui_plot  2D plots. Pinned to 0.36 because it tracks egui's version, not its own
+# clap       argument parsing, as in `xtce-cli`
+# thiserror  error enums, as everywhere else in the family
+# serde      the saved layout — which parameters are plotted, and where
+tokio = { version = "1", features = ["rt-multi-thread", "net", "io-util", "sync", "time", "macros", "fs", "signal"] }
+eframe = { version = "0.35", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
+egui = "0.35"
+egui_plot = "0.36"
+clap = { version = "4", features = ["derive"] }
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+# No `panic = "abort"`: a ground station that loses a downlink task should report it and keep
+# the window up, and `xtask`-free integration tests catch a panic rather than the process.
+
+[profile.dev.package."*"]
+opt-level = 2

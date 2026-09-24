@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Written for this project. No bundled mission definition has a `<ContextCalibratorList>`,
+  but the reference implements one — so this file has a packet stream and a golden, and
+  context calibration becomes the third feature here whose interpreted path is pinned to
+  `space_packet_parser` directly rather than to hand-computed values.
+
+  The list is tried in order and the first entry whose criteria all hold wins; the default is
+  what applies when none does. A list without a default is refused when the code is generated,
+  because then nothing applies and the reference reports the *raw* value — an integer where a
+  match would have given a float, and one generated field cannot be both.
+
+  What stopped this being compiled until now was the belief that a criterion could name any
+  parameter and so needed a dependency graph. It does not. The reference resolves a criterion
+  against what has been decoded so far, and says so: "If the parameter to compare is not
+  present in the parsed data dict, we assume that we are comparing against the current raw
+  value." So the rule is positional — a preceding field of this container, or else the field
+  being calibrated — and this file has one of each:
+
+  * SENSOR's contexts name MODE, which precedes it. The ordinary case.
+  * SELF's context names SELF. Not present in the packet yet, so it compares SELF's own raw
+    value, which is how a context calibrator asks about the thing it is calibrating.
+  * LOOKAHEAD's context names LATER, which is decoded *after* it. Also not present yet, so it
+    compares LOOKAHEAD's own raw value — not LATER's. That is surprising, it is what both
+    implementations do, and it is here so that it stays that way rather than drifting.
+  * SPLINE_CTX's context selects a spline rather than a polynomial, and selects it by MODE's
+    *label* rather than by its number — the only place in this repository where a criterion
+    compares a string and the answer is checked against Python rather than against the
+    interpreter alone.
+  * PLAIN is the control: an uncalibrated field, so a generator that calibrated everything is
+    caught.
+
+  Every `useCalibratedValue` here is `false`. On a criterion naming the field being
+  calibrated, the attribute cannot be honoured at all — the value has not been calibrated,
+  that is what is being decided — and the reference quietly uses the raw value instead. The
+  generator refuses that rather than reproducing it silently; `SUPPORTED.md` records it.
+-->
+<SpaceSystem xmlns="http://www.omg.org/spec/XTCE/20180204" name="ContextCalibrators">
+  <TelemetryMetaData>
+    <ParameterTypeSet>
+      <IntegerParameterType name="U1">
+        <IntegerDataEncoding sizeInBits="1" encoding="unsigned"/>
+      </IntegerParameterType>
+      <IntegerParameterType name="U2">
+        <IntegerDataEncoding sizeInBits="2" encoding="unsigned"/>
+      </IntegerParameterType>
+      <IntegerParameterType name="U3">
+        <IntegerDataEncoding sizeInBits="3" encoding="unsigned"/>
+      </IntegerParameterType>
+      <IntegerParameterType name="U11">
+        <IntegerDataEncoding sizeInBits="11" encoding="unsigned"/>
+      </IntegerParameterType>
+      <IntegerParameterType name="U14">
+        <IntegerDataEncoding sizeInBits="14" encoding="unsigned"/>
+      </IntegerParameterType>
+      <IntegerParameterType name="U16">
+        <IntegerDataEncoding sizeInBits="16" encoding="unsigned"/>
+      </IntegerParameterType>
+      <IntegerParameterType name="U8">
+        <IntegerDataEncoding sizeInBits="8" encoding="unsigned"/>
+      </IntegerParameterType>
+
+      <!--
+        MODE is an enumeration so that one context can be selected by a *label* rather than by
+        a number. The stream draws it from 0 to 4 and every one of those has a label, so no
+        packet carries a value the enumeration cannot name.
+      -->
+      <EnumeratedParameterType name="MODE_T">
+        <IntegerDataEncoding sizeInBits="8" encoding="unsigned"/>
+        <EnumerationList>
+          <Enumeration value="0" label="IDLE"/>
+          <Enumeration value="1" label="WARMUP"/>
+          <Enumeration value="2" label="RUNNING"/>
+          <Enumeration value="3" label="CALIBRATE"/>
+          <Enumeration value="4" label="SAFE"/>
+        </EnumerationList>
+      </EnumeratedParameterType>
+
+      <!-- Two contexts on a preceding field, and a default behind them. -->
+      <IntegerParameterType name="SENSOR_T">
+        <IntegerDataEncoding sizeInBits="16" encoding="unsigned">
+          <ContextCalibratorList>
+            <ContextCalibrator>
+              <ContextMatch>
+                <Comparison parameterRef="MODE" value="1" useCalibratedValue="false"/>
+              </ContextMatch>
+              <Calibrator>
+                <PolynomialCalibrator>
+                  <Term coefficient="0.5" exponent="1"/>
+                  <Term coefficient="12.25" exponent="0"/>
+                </PolynomialCalibrator>
+              </Calibrator>
+            </ContextCalibrator>
+            <ContextCalibrator>
+              <ContextMatch>
+                <Comparison parameterRef="MODE" value="2" useCalibratedValue="false"/>
+              </ContextMatch>
+              <Calibrator>
+                <PolynomialCalibrator>
+                  <Term coefficient="-2.0" exponent="1"/>
+                </PolynomialCalibrator>
+              </Calibrator>
+            </ContextCalibrator>
+          </ContextCalibratorList>
+          <DefaultCalibrator>
+            <PolynomialCalibrator>
+              <Term coefficient="1.0" exponent="1"/>
+              <Term coefficient="100.0" exponent="0"/>
+            </PolynomialCalibrator>
+          </DefaultCalibrator>
+        </IntegerDataEncoding>
+      </IntegerParameterType>
+
+      <!-- A criterion on the value being calibrated. -->
+      <IntegerParameterType name="SELF_T">
+        <IntegerDataEncoding sizeInBits="16" encoding="unsigned">
+          <ContextCalibratorList>
+            <ContextCalibrator>
+              <ContextMatch>
+                <Comparison parameterRef="SELF" value="1000" comparisonOperator="&gt;"
+                            useCalibratedValue="false"/>
+              </ContextMatch>
+              <Calibrator>
+                <PolynomialCalibrator>
+                  <Term coefficient="0.001" exponent="1"/>
+                </PolynomialCalibrator>
+              </Calibrator>
+            </ContextCalibrator>
+          </ContextCalibratorList>
+          <DefaultCalibrator>
+            <PolynomialCalibrator>
+              <Term coefficient="1.0" exponent="1"/>
+            </PolynomialCalibrator>
+          </DefaultCalibrator>
+        </IntegerDataEncoding>
+      </IntegerParameterType>
+
+      <!-- A criterion naming a parameter decoded later, which resolves to this one's raw. -->
+      <IntegerParameterType name="LOOKAHEAD_T">
+        <IntegerDataEncoding sizeInBits="16" encoding="unsigned">
+          <ContextCalibratorList>
+            <ContextCalibrator>
+              <ContextMatch>
+                <Comparison parameterRef="LATER" value="5" useCalibratedValue="false"/>
+              </ContextMatch>
+              <Calibrator>
+                <PolynomialCalibrator>
+                  <Term coefficient="7.0" exponent="0"/>
+                </PolynomialCalibrator>
+              </Calibrator>
+            </ContextCalibrator>
+          </ContextCalibratorList>
+          <DefaultCalibrator>
+            <PolynomialCalibrator>
+              <Term coefficient="1.0" exponent="1"/>
+            </PolynomialCalibrator>
+          </DefaultCalibrator>
+        </IntegerDataEncoding>
+      </IntegerParameterType>
+
+      <!-- A context whose calibrator is a spline rather than a polynomial. -->
+      <IntegerParameterType name="SPLINE_CTX_T">
+        <IntegerDataEncoding sizeInBits="8" encoding="unsigned">
+          <ContextCalibratorList>
+            <ContextCalibrator>
+              <ContextMatch>
+                <!--
+                  A label, with `useCalibratedValue` left at its default of true: what is
+                  compared is the engineering value, and an enumeration's engineering value is
+                  a string. The reference compares it as one; this side resolves the labels
+                  satisfying the comparison to raw values when the code is generated. Both
+                  answers are in the golden, so the resolution is pinned to Python and not
+                  only to the interpreter.
+                -->
+                <Comparison parameterRef="MODE" value="CALIBRATE"/>
+              </ContextMatch>
+              <Calibrator>
+                <SplineCalibrator order="1" extrapolate="true">
+                  <SplinePoint raw="0" calibrated="-40.0"/>
+                  <SplinePoint raw="128" calibrated="0.0"/>
+                  <SplinePoint raw="255" calibrated="85.5"/>
+                </SplineCalibrator>
+              </Calibrator>
+            </ContextCalibrator>
+          </ContextCalibratorList>
+          <DefaultCalibrator>
+            <PolynomialCalibrator>
+              <Term coefficient="0.25" exponent="1"/>
+            </PolynomialCalibrator>
+          </DefaultCalibrator>
+        </IntegerDataEncoding>
+      </IntegerParameterType>
+    </ParameterTypeSet>
+
+    <ParameterSet>
+      <Parameter name="VERSION" parameterTypeRef="U3"/>
+      <Parameter name="TYPE" parameterTypeRef="U1"/>
+      <Parameter name="SEC_HDR_FLAG" parameterTypeRef="U1"/>
+      <Parameter name="PKT_APID" parameterTypeRef="U11"/>
+      <Parameter name="SEQ_FLGS" parameterTypeRef="U2"/>
+      <Parameter name="SEQ_CTR" parameterTypeRef="U14"/>
+      <Parameter name="PKT_LEN" parameterTypeRef="U16"/>
+
+      <Parameter name="MODE" parameterTypeRef="MODE_T"/>
+      <Parameter name="SENSOR" parameterTypeRef="SENSOR_T"/>
+      <Parameter name="SELF" parameterTypeRef="SELF_T"/>
+      <Parameter name="LOOKAHEAD" parameterTypeRef="LOOKAHEAD_T"/>
+      <Parameter name="SPLINE_CTX" parameterTypeRef="SPLINE_CTX_T"/>
+      <Parameter name="LATER" parameterTypeRef="U8"/>
+      <Parameter name="PLAIN" parameterTypeRef="U8"/>
+    </ParameterSet>
+
+    <ContainerSet>
+      <SequenceContainer name="CCSDSPacket" abstract="true">
+        <EntryList>
+          <ParameterRefEntry parameterRef="VERSION"/>
+          <ParameterRefEntry parameterRef="TYPE"/>
+          <ParameterRefEntry parameterRef="SEC_HDR_FLAG"/>
+          <ParameterRefEntry parameterRef="PKT_APID"/>
+          <ParameterRefEntry parameterRef="SEQ_FLGS"/>
+          <ParameterRefEntry parameterRef="SEQ_CTR"/>
+          <ParameterRefEntry parameterRef="PKT_LEN"/>
+        </EntryList>
+      </SequenceContainer>
+
+      <SequenceContainer name="Payload">
+        <EntryList>
+          <ParameterRefEntry parameterRef="MODE"/>
+          <ParameterRefEntry parameterRef="SENSOR"/>
+          <ParameterRefEntry parameterRef="SELF"/>
+          <ParameterRefEntry parameterRef="LOOKAHEAD"/>
+          <ParameterRefEntry parameterRef="SPLINE_CTX"/>
+          <ParameterRefEntry parameterRef="LATER"/>
+          <ParameterRefEntry parameterRef="PLAIN"/>
+        </EntryList>
+        <BaseContainer containerRef="CCSDSPacket">
+          <RestrictionCriteria>
+            <Comparison parameterRef="PKT_APID" value="300" useCalibratedValue="false"/>
+          </RestrictionCriteria>
+        </BaseContainer>
+      </SequenceContainer>
+    </ContainerSet>
+  </TelemetryMetaData>
+</SpaceSystem>

@@ -1,0 +1,31 @@
+[package]
+name = "xtce-gs-gui"
+description = "The operator interface: egui panels, plots and a saved layout"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+xtce-gs-core.workspace = true
+xtce-gs-engine.workspace = true
+xtce-model.workspace = true
+# `run` owns the reactor the session's tasks live on, and `Session::start` takes a
+# `tokio::runtime::Handle` — which cannot be named without the crate. Nothing else here is
+# async: the interface blocks on the display, not on a socket.
+tokio.workspace = true
+eframe.workspace = true
+egui.workspace = true
+egui_plot.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+# The interface's data path is testable without a window: every panel's `refresh` takes core
+# and engine types and no `egui::Context`. Driving it needs a real session, which needs the
+# link crate to name a source and tokio to run one.
+xtce-gs-link.workspace = true
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }

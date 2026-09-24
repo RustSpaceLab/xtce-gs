@@ -1,0 +1,25 @@
+[package]
+name = "xtce-gs-engine"
+description = "The task graph: acquisition to decoded parameters to a snapshot the interface reads"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+xtce-gs-core.workspace = true
+xtce-gs-link.workspace = true
+xtce-model.workspace = true
+xtce-decode.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+# The limits file, and nothing else in this crate. `SessionConfig` is not serialised: it holds
+# a `SourceSpec` and a `PipelineConfig`, which the link crate does not derive serde on, and a
+# config that round-trips through a file is the command line's problem, not the engine's.
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time"] }

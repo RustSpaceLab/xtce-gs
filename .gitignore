@@ -1,0 +1,17 @@
+/target
+**/*.rs.bk
+*.pdb
+
+# Editors and the desktop.
+/.idea
+/.vscode
+.DS_Store
+
+# Recordings and exports made while flying something: bytes off a link and CSV out of the
+# store. Neither belongs in a repository, and both land here by default.
+/recordings
+*.csv
+*.dat
+
+# Not `testdata/`: the recording vendored there is the one the tests need, and its extension
+# is `.DAT1`. The rule above is for what `--record` writes.
