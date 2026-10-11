@@ -31,13 +31,6 @@ pub enum EngineError {
     Io(#[from] std::io::Error),
 
     /// The configuration cannot be carried out.
-    ///
-    /// A history depth of zero, a limits file whose JSON does not parse, a spacecraft time
-    /// parameter no definition declares. `serde_json::Error` is deliberately *not* a variant
-    /// of its own: the contract fixes this enum at five, and a parse failure is something the
-    /// operator wrote, which is what this variant means. The message carries the file, the
-    /// line and the column, because "invalid configuration" sends someone reading JSON by
-    /// eye.
     #[error("{0}")]
     Config(String),
 }

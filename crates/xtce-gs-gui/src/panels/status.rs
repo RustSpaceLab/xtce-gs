@@ -692,16 +692,6 @@ fn settings_menu(ui: &mut egui::Ui, layout: &Layout) -> Action {
 
 /// Appends the Reed-Solomon cell: frames repaired, frames lost, and how deep the repairs went.
 ///
-/// The depth is `rs_symbols / rs_corrected` — symbols repaired per frame that needed
-/// repairing — and it is the number `xtce_gs_link::rs` argues an operator has to be able to
-/// watch: a decoder beyond its capacity does not fail, it lands on a different valid codeword
-/// and hands back a frame that passes every check. The frame counts beside it say a repair
-/// happened; only the depth says how much margin was left.
-///
-/// It is appended to the same cell rather than given one of its own, and only while something
-/// has actually been repaired, so a clean pass leaves the row exactly the width it has today —
-/// which is what `gs-gui-status-row2` was blocked on.
-///
 /// Not coloured against a threshold. The capacity is `E` symbols per codeword times the
 /// interleaving depth (CCSDS 131.0-B-5 §4.4.1), and neither number reaches this panel:
 /// [`xtce_gs_core::LinkStats`] carries counters and not the coding configuration, so a

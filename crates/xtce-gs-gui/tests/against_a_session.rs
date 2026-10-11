@@ -204,12 +204,6 @@ fn every_panel_fills_from_a_session_that_really_decoded_a_downlink() {
 }
 
 /// The layout that ships beside the JPSS definition opens on three full plots.
-///
-/// The README and the v0.1.0 notes both say so, which is reason enough to assert it: a layout
-/// is resolved by *qualified name* against the definition, and a name that no longer matches
-/// is dropped with a note rather than an error — the station starts either way. So a typo in
-/// the shipped file would leave a visitor looking at the empty window this layout exists to
-/// prevent, and nothing would say why.
 #[test]
 fn the_shipped_layout_opens_on_three_full_plots() {
     let definition = testdata("jpss1_geolocation_xtce_v1.xml");

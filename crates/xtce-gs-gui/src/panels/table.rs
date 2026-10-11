@@ -219,16 +219,6 @@ impl Table {
     }
 
     /// Orders `rows` by the column in use.
-    ///
-    /// The *first* click on a column is the order that column is worth looking at, which for
-    /// three of the four is the largest first: the newest value, the worst limit, the
-    /// chattiest parameter. Only the name sorts ascending. [`Table::set_sort`] then reverses
-    /// on a second click, so `descending` here means "reversed from that", which is what
-    /// [`Table::is_descending`] documents and not "reversed from `Ord`".
-    ///
-    /// The name is the tie-break in every order, and it is looked up twice per comparison
-    /// rather than cached on the [`Row`]: a row carries the values an operator reads, and a
-    /// few hundred of them make a handful of array indexings per comparison, not a hash.
     fn sort_rows(&mut self, db: &XtceDb) {
         let reversed = self.descending;
         let direction = |ordering: Ordering| {

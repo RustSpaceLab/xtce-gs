@@ -124,16 +124,6 @@ pub const EMPTY_WINDOW_SECONDS: f64 = 60.0;
 const HUE_STEPS: u64 = 1024;
 
 /// Seconds either side of the Unix epoch that a tick label is clamped to.
-///
-/// [`xtce_gs_core::Utc`] holds nanoseconds in an `i64`, which reaches 2262. The panel clamps
-/// its tick formatting to well inside that: an axis past 2262-04-10 is not a view of any
-/// telemetry, and a tick label is produced from whatever the operator drags the axis to.
-///
-/// This was originally a guard against a real arithmetic panic — `Utc::civil` multiplied its
-/// own day count back out by 86 400 000 000 000, which overflows an `i64` within a day of
-/// either end, on the drawing thread, from a drag. Core now floor-divides instead and cannot
-/// overflow for any input, so this is no longer load-bearing; it stays because a tick label
-/// reading "2262-04-11" is noise either way.
 const CIVIL_LIMIT_SECONDS: f64 = 9_223_200_000.0;
 
 /// FNV-1a's 64-bit offset basis (Fowler–Noll–Vo, 1991).
@@ -877,22 +867,6 @@ fn plot_menu(response: &egui::Response, grid: &Grid<'_>, index: usize, group: &[
 const BAND_OPACITY: f32 = 1.0 / 12.0;
 
 /// Draws a parameter's warning and alarm bounds across the plot.
-///
-/// Dashed and thin so they read as annotation rather than as telemetry, and unnamed so that
-/// `egui_plot` keeps them out of the legend — `LegendWidget::try_new` skips an item whose name
-/// is empty, which is the only way to add four lines per series without burying the names.
-///
-/// The lines are inside the y auto-bounds, so a plot of a parameter with limits shows the
-/// headroom rather than the noise. When that is the wrong trade — an alarm bound decades away
-/// from the value — the escape is the plot's own `autoscale: false` and `y_range`, which are
-/// saved in the layout.
-///
-/// The two ranges are also shaded, between the warning bound and the alarm bound on each side
-/// — that is the band an operator reads as "getting close" without having to compare a value
-/// against two numbers. Both decisions the shading needs are made from the theme rather than
-/// from a constant: the fill is the same colour as the line at a twelfth of its opacity, so
-/// it is as dark or as light as the rest of the window, and it is drawn *before* the series,
-/// so telemetry is never behind it.
 fn limit_lines(
     plot_ui: &mut egui_plot::PlotUi<'_>,
     limit: &Limit,

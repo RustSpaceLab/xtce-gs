@@ -325,17 +325,6 @@ impl Synchronizer {
     }
 
     /// Scans forward for the marker. `true` when lock was taken.
-    ///
-    /// On failure the buffer is trimmed to the tail that could still *begin* a marker, which
-    /// is what bounds the buffer on a stream that never syncs and what keeps the rescan from
-    /// being quadratic: the next scan restarts near the end of the buffer, not at its head.
-    ///
-    /// `self.marker` is never empty here, and the guarantee is not in this function: the
-    /// three places that set [`SyncState::Searching`] — `new`, `reset` and `locate_frame`'s
-    /// lock-loss path — each do so only when the marker is non-empty, and `locate_frame`
-    /// calls this only while searching. A fourth such site has to keep that, because an
-    /// empty marker matches at the cursor immediately and would count a lock the empty-marker
-    /// mode promises never to count.
     fn acquire(&mut self) -> bool {
         let marker_len = self.marker.len();
         let offsets: u8 = if self.bit_slip { 8 } else { 1 };
@@ -496,8 +485,6 @@ mod tests {
         assert_eq!(sync.take_counters().bytes_discarded, 37);
     }
 
-    /// The last frame of a stream that ends cleanly has no marker after it. A synchroniser
-    /// that waits for one loses it.
     #[test]
     fn the_last_frame_is_emitted_although_no_marker_follows_it() {
         let mut sync = Synchronizer::new(16, CCSDS_ASM.to_vec(), false);
@@ -516,8 +503,6 @@ mod tests {
         assert_eq!(drain(&mut sync), vec![frame(0x02, 16)]);
     }
 
-    /// The whole point of the flywheel: a bit error inside the marker must not cost the frame
-    /// behind it, which Reed-Solomon can still correct.
     #[test]
     fn a_single_corrupted_marker_costs_neither_the_lock_nor_the_frame() {
         let mut sync = Synchronizer::new(8, CCSDS_ASM.to_vec(), false);
@@ -533,8 +518,6 @@ mod tests {
         assert_eq!(counters.losses, 0);
     }
 
-    /// With a flywheel of four, four misses in a row are tolerated and the fifth loses lock.
-    /// The skeleton's rule is `misses > flywheel`, and this test is what pins it.
     #[test]
     fn loses_lock_on_the_fifth_consecutive_missing_marker_with_a_flywheel_of_four() {
         let mut sync = Synchronizer::new(8, CCSDS_ASM.to_vec(), false);
@@ -559,8 +542,6 @@ mod tests {
         assert_eq!(counters.markers_found, 1);
     }
 
-    /// Every one of the seven offsets, not one of them: an off-by-one in the shift helper
-    /// passes at four bits and fails at one.
     #[test]
     fn a_stream_slipped_by_each_of_the_seven_bit_offsets_still_yields_the_frames() {
         for bits in 1..8u8 {
@@ -589,13 +570,6 @@ mod tests {
     }
 
     /// A stream that never syncs must not be a memory leak with a counter on it.
-    ///
-    /// Two things this has to get right to see anything. The fixture must contain the bytes
-    /// the scan is looking for — a stream with no `0x1A` in it fails on the first comparison
-    /// at every index and every bit offset, so it never reaches the trim, a partial match or
-    /// a near-lock. And the assertion must be on the buffer itself: `buffered()` is
-    /// `len - cursor`, which is small the moment the cursor moves whether or not `push` ever
-    /// released the prefix behind it, so it cannot observe the leak it is meant to catch.
     #[test]
     fn the_buffer_does_not_grow_on_a_stream_that_never_syncs() {
         // `1A CF FC` is the first three octets of the marker and `1A` alone is its first, so
@@ -637,11 +611,6 @@ mod tests {
         );
     }
 
-    /// The flywheel tolerates *consecutive* misses — `DEFAULT_FLYWHEEL`'s doc says so — and
-    /// `self.misses = 0` on a matched marker is the whole of what makes that true. Damage
-    /// every other marker: no two in a row, so a counter that resets never passes one, and a
-    /// counter that only ever climbs passes four and drops lock partway through the stream.
-    /// Every existing flywheel test damages an unbroken run, where the two behave alike.
     #[test]
     fn marker_damage_that_is_never_consecutive_costs_no_lock_however_much_of_it_arrives() {
         let mut sync = Synchronizer::new(8, CCSDS_ASM.to_vec(), false);
@@ -672,10 +641,6 @@ mod tests {
         assert_eq!(counters.frames, 12);
     }
 
-    /// A marker at a non-zero bit offset spans one byte more than its length, so the last
-    /// position the scan reaches — `buffer.len() - marker_len` — is one it cannot decide:
-    /// `marker_at` refuses it for want of the straddle byte. The extra byte in the trim's
-    /// `keep` is what holds that position until the next push brings the rest of it.
     #[test]
     fn a_slipped_marker_at_the_trim_boundary_survives_the_trim() {
         for bits in 1..8u8 {
@@ -723,9 +688,6 @@ mod tests {
         assert_eq!(bare.take_counters().frames, 0);
     }
 
-    /// A synchroniser that can never cut a frame must not hold the stream it will never cut.
-    /// `locate_frame` returns before the tail trim in this mode, so the trim is not what
-    /// bounds it; `push` is.
     #[test]
     fn a_frame_length_of_zero_discards_what_it_can_never_cut() {
         let mut sync = Synchronizer::new(0, CCSDS_ASM.to_vec(), true);
@@ -772,7 +734,6 @@ mod tests {
         assert_eq!(counters.losses, 0, "a boundary is not a lock loss");
     }
 
-    /// A marker split across two reads is the common case on TCP, not an edge case.
     #[test]
     fn a_marker_that_straddles_two_pushes_is_still_found() {
         let mut sync = Synchronizer::new(8, CCSDS_ASM.to_vec(), false);
@@ -801,8 +762,6 @@ mod tests {
         assert_eq!(from_one_chunk.len(), 3);
     }
 
-    /// Once lock is lost the search resumes ahead of the cursor and finds the next real
-    /// marker, rather than sitting in `Searching` on a stream that is perfectly fine again.
     #[test]
     fn lock_is_regained_at_the_next_good_marker_after_a_loss() {
         let mut sync = Synchronizer::new(8, CCSDS_ASM.to_vec(), false);
@@ -819,8 +778,6 @@ mod tests {
         assert_eq!(counters.locks, 2);
     }
 
-    /// The frame is handed out as a borrow of the buffer, and correcting it in place is the
-    /// reason it is: what the caller writes is what the synchroniser holds.
     #[test]
     fn the_frame_is_a_mutable_borrow_of_the_synchronisers_own_buffer() {
         let mut sync = Synchronizer::new(8, CCSDS_ASM.to_vec(), false);

@@ -368,12 +368,6 @@ enum Reason {
 }
 
 /// A bounded, repeat-collapsing queue of lines for the operator.
-///
-/// The event log downstream collapses repeats too, but it cannot help here: the cost being
-/// avoided is the `format!` that builds the message, which happens on this side of the queue.
-/// A run of identical lines is therefore reported as one line with the count appended, which
-/// means the log's own repeat count undercounts — the trade is deliberate, and the number the
-/// operator reads is the one in the message.
 #[derive(Debug)]
 struct Events {
     queued: Vec<Event>,
@@ -1081,13 +1075,6 @@ mod tests {
     }
 
     /// The first `count` packets of the JPSS recording.
-    ///
-    /// Panics if the recording is not there, and that is the point. This used to fall back to
-    /// packets made up on the spot, which kept every test below green while it quietly stopped
-    /// testing the thing it is named after — a real pass, with the field widths and the
-    /// sequence counts a real spacecraft produced. The recording is vendored in this
-    /// repository now, so its absence means somebody deleted it, and a deleted fixture should
-    /// cost a red test rather than a silent change of subject.
     fn packets(count: usize) -> Vec<Vec<u8>> {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(JPSS);
         let bytes = std::fs::read(&path).unwrap_or_else(|error| {
@@ -1156,12 +1143,6 @@ mod tests {
     }
 
     /// Wraps packets in transfer frames the way CCSDS 132.0-B-3 section 4.1 lays them out.
-    ///
-    /// The coding order here is the inverse of [`Pipeline::push`]'s and has to be flipped with
-    /// it: randomise the transfer frame, then Reed-Solomon encode the randomised frame, then
-    /// put the marker in front of the block. A fixture that mirrors the pipeline cannot decide
-    /// which order is right — it passes either way round — which is exactly why the argument
-    /// is written out in `Pipeline::push` rather than left to this test.
     fn fixture(count: usize, rs: Option<RsConfig>, scramble: bool, asm: bool) -> Fixture {
         let expected = packets(count);
         let frame_length = rs.map_or(PLAIN_FRAME_LENGTH, RsConfig::frame_bytes);
