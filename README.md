@@ -34,9 +34,14 @@ $ strip target/release/xtce-gs && ls -l target/release/xtce-gs
 ```
 
 Measured with rustc 1.99.0; the toolchain and the dependency tree both move these by a few
-kilobytes, so run the commands rather than trusting the figures. A Linux build will differ and
-is not measured here; the release workflow is where that number should come from rather than
-from this paragraph.
+kilobytes, so run the commands rather than trusting the figures.
+
+Linux is bigger, and the release workflow is what says so rather than this paragraph: the
+[v0.1.0 notes](https://github.com/RustSpaceLab/xtce-gs/releases/tag/v0.1.0) carry a table it
+measured on the runner, where `x86_64-unknown-linux-gnu` is 13 685 384 bytes unstripped and
+11 424 312 stripped — 10.90 MiB, against 8.19 for macOS arm64. The GUI toolkit links against
+X11, Wayland and GTK there and against system frameworks on macOS, and that is most of the
+difference.
 
 | Crate | What it does |
 |---|---|
