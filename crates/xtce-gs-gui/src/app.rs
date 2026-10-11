@@ -30,6 +30,7 @@ use xtce_gs_engine::Session;
 use xtce_gs_engine::session::log;
 use xtce_model::{ParamId, XtceDb};
 
+use crate::capture::{Capture, Next, Screenshot};
 use crate::layout::Layout;
 use crate::panels::events::Events;
 use crate::panels::plots::{Plots, View};
@@ -97,6 +98,8 @@ pub struct App {
     view_drawn: View,
     /// Passes still owed a refill after input arrived — see [`INPUT_REFRESH_PASSES`].
     input_passes: u8,
+    /// A picture of the window this run owes somebody, and has not taken yet.
+    capture: Option<Capture>,
 }
 
 /// Whether two axis ranges are the same number.
@@ -158,12 +161,17 @@ impl App {
     /// layout comes from the file [`crate::Layout::load`] read before the window opened. The
     /// parameter is taken anyway because it is where the theme and the fonts belong.
     #[must_use]
-    pub fn new(cc: &eframe::CreationContext<'_>, session: Session, mut layout: Layout) -> Self {
+    pub fn new(
+        cc: &eframe::CreationContext<'_>,
+        session: Session,
+        mut layout: Layout,
+        screenshot: Option<Screenshot>,
+    ) -> Self {
         let db = Arc::clone(session.db());
         cc.egui_ctx.set_theme(layout.theme.preference());
 
         watch_what_is_plotted(&mut layout);
-        let named = layout.watched.len();
+        let named = layout.named();
         let resolved = {
             let mut store = session
                 .store()
@@ -195,6 +203,7 @@ impl App {
             db,
             layout,
             status: Status::new(),
+            capture: screenshot.map(Capture::new),
             // `Tree::new` starts dirty, which is what forces the first frame's copy: the
             // store's generation can legitimately still be 0 at this point.
             tree: Tree::new(),
@@ -528,7 +537,7 @@ fn restore_report(resolved: usize, named: usize) -> Event {
             format!(
                 "layout: {resolved} of {named} saved parameters are in this definition; the \
                  other {} are kept in the layout in case it comes back",
-                named - resolved
+                named.saturating_sub(resolved)
             ),
         )
     }
@@ -553,6 +562,16 @@ impl eframe::App for App {
         }
         // The clock, the ages and the live indicator move on their own.
         ctx.request_repaint_after_secs(IDLE_REPAINT_SECONDS);
+
+        // Last, so the frame handed back is one `refresh` has already filled.
+        let taken = self
+            .capture
+            .as_mut()
+            .is_some_and(|capture| capture.poll(ctx) == Next::Done);
+        if taken {
+            self.capture = None;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
     }
 
     /// Lays the panels out over the buffers [`App::refresh`] filled. Computes nothing.

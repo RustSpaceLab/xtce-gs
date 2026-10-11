@@ -243,9 +243,11 @@ fn the_shipped_layout_opens_on_three_full_plots() {
         let resolved = layout.restore(&db, &mut store);
         assert_eq!(
             resolved,
-            layout.watched.len() + names.len(),
+            layout.named(),
             "the shipped layout names a parameter this definition does not declare"
         );
+        // Counted by parameter, not by mention: every plotted name is a watched name too.
+        assert_eq!(layout.named(), layout.watched.len());
     }
 
     let deadline = Instant::now() + Duration::from_secs(30);

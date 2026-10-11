@@ -43,6 +43,10 @@ tokio = { version = "1", features = ["rt-multi-thread", "net", "io-util", "sync"
 eframe = { version = "0.35", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
 egui = "0.35"
 egui_plot = "0.36"
+# image      PNG encoding, for the window photographing itself (xtce-gs-gui::capture).
+#            Already in the tree behind eframe; only the encoder is wanted, so the
+#            decoders and formats that come with the default features stay out.
+image = { version = "0.25", default-features = false, features = ["png"] }
 clap = { version = "4", features = ["derive"] }
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }

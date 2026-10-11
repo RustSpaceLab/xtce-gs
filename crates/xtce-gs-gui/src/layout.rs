@@ -22,6 +22,7 @@
 //! layout that referred to indices would silently plot the wrong parameter after an edit,
 //! which is the failure nobody checks for because the plot still draws.
 
+use std::collections::HashSet;
 use std::ffi::OsString;
 use std::fs;
 use std::io::ErrorKind;
@@ -364,15 +365,38 @@ impl Layout {
     /// watches would draw an empty box for the rest of the session with no error anywhere,
     /// which is the worst shape a failure can take: the station works and shows nothing.
     pub fn restore(&self, db: &XtceDb, store: &mut ParameterStore) -> usize {
+        // Counted by parameter and not by mention. A plotted parameter is in `watched` too —
+        // `App` puts it there before this runs, and a layout saved by the interface has it
+        // both places anyway — so counting mentions returns more than the layout names, and
+        // the caller that subtracts the two gets `usize::MAX` minus a little. Deduplicating
+        // on the resolved id rather than on the string also means two names for one parameter
+        // count once, which is what the number is reported as meaning.
         let plotted = self.plots.iter().flat_map(|plot| plot.parameters.iter());
-        let mut resolved = 0;
+        let mut resolved = HashSet::new();
         for name in self.watched.iter().chain(plotted) {
             if let Some(parameter) = db.find_parameter(name) {
                 store.watch(parameter);
-                resolved += 1;
+                resolved.insert(parameter);
             }
         }
-        resolved
+        resolved.len()
+    }
+
+    /// How many distinct parameters this layout names, watched and plotted together.
+    ///
+    /// The denominator for [`Layout::restore`], and counted the same way: a parameter that is
+    /// watched *and* drawn in two plots is one name here and one resolution there, so the two
+    /// can be compared and subtracted.
+    #[must_use]
+    pub fn named(&self) -> usize {
+        let plotted = self.plots.iter().flat_map(|plot| plot.parameters.iter());
+        let names: HashSet<&str> = self
+            .watched
+            .iter()
+            .chain(plotted)
+            .map(String::as_str)
+            .collect();
+        names.len()
     }
 
     /// Copies what the store is watching into the layout, before a save.
@@ -697,6 +721,29 @@ mod tests {
             .save(&nowhere)
             .expect_err("a read-only or missing directory refuses the write");
         assert!(matches!(error, GuiError::Io(_)), "{error}");
+    }
+
+    /// A parameter that is watched *and* plotted is one parameter.
+    ///
+    /// It used to be two, because `restore` counted mentions while the caller's denominator
+    /// counted the watch list — so the station reported "22 of 12" on the first layout that
+    /// shipped with plots in it, and subtracted its way to 18 446 744 073 709 551 606.
+    #[test]
+    fn a_parameter_that_is_watched_and_plotted_resolves_once() {
+        let db = db();
+        let mut store = ParameterStore::new(db.parameters().len(), 16);
+        let mut layout = Layout::default();
+        layout.watched.push("/Sat/VOLTS".to_owned());
+        let mut plot = PlotLayout::new("volts");
+        plot.parameters.push("/Sat/VOLTS".to_owned());
+        layout.plots.push(plot);
+
+        assert_eq!(layout.named(), 1, "one parameter, named twice");
+        assert_eq!(layout.restore(&db, &mut store), 1);
+        assert!(
+            layout.restore(&db, &mut store) <= layout.named(),
+            "a resolution count above the denominator is what underflowed the report"
+        );
     }
 
     #[test]

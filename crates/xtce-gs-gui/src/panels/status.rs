@@ -430,27 +430,56 @@ pub fn show(
     scratch: &mut String,
 ) -> Action {
     ui.horizontal(|ui| {
-        indicator(ui, status);
-        ui.label(source)
-            .on_hover_text("The source that was opened, which is not always the one configured");
-        ui.separator();
-        arrival(ui, status, scratch);
-        ui.separator();
-        if framed {
-            frames(ui, status, scratch);
-            ui.separator();
-            coding(ui, status, scratch);
-            ui.separator();
-        }
-        packets(ui, status, scratch);
-
+        // The controls go in before the counters, which reads backwards and is the only order
+        // that works: in a left-to-right strip egui hands a right-aligned block the width that
+        // is *left over*, and once the counters have taken it all that block is given a rect
+        // starting at the right edge — so it draws back over them, and the last counter
+        // disappears under `Pause`. Right-aligned first, counters in what remains, and a
+        // window too narrow for both truncates instead of overlapping.
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            controls(ui, layout, paused)
+            let action = controls(ui, layout, paused);
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                indicator(ui, status);
+                // A file source carries its whole path and query string — rate, chunk size,
+                // repeat — which is longer than everything else on this strip put together
+                // and is what pushed the counters under the buttons. Capped and truncated;
+                // the hover still has all of it, and that is where anybody reading a URL for
+                // detail is going to look anyway.
+                ui.scope(|ui| {
+                    ui.set_max_width((ui.available_width() * SOURCE_WIDTH_SHARE).max(SOURCE_MIN));
+                    ui.add(egui::Label::new(source).truncate()).on_hover_text(
+                        "The source that was opened, which is not always the one configured",
+                    );
+                });
+                ui.separator();
+                arrival(ui, status, scratch);
+                ui.separator();
+                if framed {
+                    frames(ui, status, scratch);
+                    ui.separator();
+                    coding(ui, status, scratch);
+                    ui.separator();
+                }
+                packets(ui, status, scratch);
+            });
+            action
         })
         .inner
     })
     .inner
 }
+
+/// How much of the strip the source label may take before it is truncated.
+///
+/// A share and not a width: the counters beside it are a fixed set, so what is left for the
+/// source grows with the window rather than staying at whatever looked right on one.
+const SOURCE_WIDTH_SHARE: f32 = 0.34;
+
+/// The least the source label gets, however narrow the window is.
+///
+/// Enough for `udp://0.0.0.0:10015`, which is the shape of the one an operator reads at a
+/// glance to check they are on the right port.
+const SOURCE_MIN: f32 = 150.0;
 
 /// The dot, coloured by [`Status::liveness`].
 fn indicator(ui: &mut egui::Ui, status: &Status) {

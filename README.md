@@ -99,8 +99,21 @@ $ xtce-gs export testdata/jpss/jpss1_geolocation_xtce_v1.xml \
       testdata/jpss/J01_G011_LZ_2021-04-09T00-00-00Z_V01.DAT1 -o jpss.csv
 ```
 
+![The station replaying a JPSS pass: a parameter tree, a table of current values, and plots of
+GPS position and velocity over one orbit](docs/station.png)
+
+That picture is not a screen grab. The window photographs itself, so there is a command that
+makes it again rather than a file nobody can reproduce:
+
+```console
+$ xtce-gs replay testdata/jpss/jpss1_geolocation_xtce_v1.xml \
+      testdata/jpss/J01_G011_LZ_2021-04-09T00-00-00Z_V01.DAT1 \
+      --rate 100000 --repeat --screenshot docs/station.png --screenshot-after 4
+```
+
 The replay opens with three plots already drawn — GPS position, GPS velocity and the attitude
-quaternion, 7 200 points each — because a layout ships beside the definition as
+quaternion, 7 200 points each, the third below the fold — because a layout ships beside the
+definition as
 `jpss1_geolocation_xtce_v1.xml.gs-layout.json`. That is not a special case for the demo: a
 layout is a plain JSON file of qualified parameter names that the interface writes next to
 whatever definition you open, so the arrangement belongs to the mission rather than to your
