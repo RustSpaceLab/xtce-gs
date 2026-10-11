@@ -1450,4 +1450,57 @@ mod tests {
             }
         }
     }
+    /// Reed-Solomon cannot tell you that you forgot to derandomise.
+    ///
+    /// The pipeline is `synchronise → derandomise → Reed-Solomon`, and the temptation is to
+    /// put the error-correcting code first, on the theory that a check this strong would
+    /// notice a block that had not been derandomised yet. It does not, and the reason is
+    /// worth stating once where somebody reordering the pipeline will read it.
+    ///
+    /// The randomiser sequence of CCSDS 131.0-B-5 §10.4 is 255 octets. An RS(255,223)
+    /// codeword is 255 symbols over GF(2^8), and this code is linear: the sum of two
+    /// codewords is a codeword, and over GF(2) that sum is XOR. The sequence happens to be a
+    /// codeword itself — so a randomised frame, which is `codeword XOR sequence`, is also a
+    /// codeword. Exactly. Zero syndromes, zero corrections, and a block that disagrees with
+    /// the frame it came from in every single symbol.
+    ///
+    /// So the only thing standing between a misordered pipeline and 255 bytes of confident
+    /// nonsense is the order itself.
+    #[test]
+    fn reed_solomon_cannot_see_that_the_derandomiser_was_skipped() {
+        let rs = ReedSolomon::ccsds(32, 1).expect("RS(255,223) is a CCSDS code");
+
+        // The premise: the randomiser sequence is a codeword.
+        let mut sequence = crate::derand::sequence();
+        assert_eq!(rs.decode(&mut sequence), Ok(0));
+
+        // And arbitrary bytes of the same length are not, so that is not a vacuous check.
+        let mut arbitrary = [0u8; CODEWORD_SYMBOLS];
+        let mut state = 1u32;
+        for byte in &mut arbitrary {
+            state = state.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+            *byte = (state >> 16) as u8;
+        }
+        assert_eq!(rs.decode(&mut arbitrary), Err(RsError::Uncorrectable));
+
+        // The consequence: a real frame, encoded and then randomised, decodes clean.
+        let frame: Vec<u8> = (0..223u32)
+            .map(|i| (i.wrapping_mul(37) ^ 0xA5) as u8)
+            .collect();
+        let mut encoded = Vec::new();
+        rs.encode(&frame, &mut encoded)
+            .expect("223 data symbols is the code's data length");
+
+        let mut skipped_the_derandomiser = encoded.clone();
+        crate::derand::randomize(&mut skipped_the_derandomiser);
+        assert_eq!(rs.decode(&mut skipped_the_derandomiser), Ok(0));
+
+        // Clean, and wrong in every symbol.
+        let differing = encoded
+            .iter()
+            .zip(&skipped_the_derandomiser)
+            .filter(|(sent, got)| sent != got)
+            .count();
+        assert_eq!(differing, CODEWORD_SYMBOLS);
+    }
 }
