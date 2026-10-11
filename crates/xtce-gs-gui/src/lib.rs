@@ -248,7 +248,20 @@ impl eframe::App for Failure {
 /// the operator has to fix, and a machine with no display is a machine where this is being
 /// read off a terminal anyway.
 pub fn run(config: SessionConfig) -> Result<(), GuiError> {
-    run_capturing(config, None)
+    run_with(config, Startup::default())
+}
+
+/// What the operator asked for on the command line this run, as against what the saved layout
+/// remembers from the last one.
+///
+/// Every field is an `Option` for the same reason: a depth of 4096 typed out and a depth of
+/// 4096 that nobody typed are the same number and not the same instruction.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Startup {
+    /// Where to write a picture of the window, and how long to fill it first.
+    pub screenshot: Option<Screenshot>,
+    /// Points of history per watched parameter. Given, this beats the layout's own depth.
+    pub history: Option<usize>,
 }
 
 /// [`run`], and a picture of the window on the way past.
@@ -263,10 +276,7 @@ pub fn run(config: SessionConfig) -> Result<(), GuiError> {
 /// fail the run: the session was real and its counters were real, and a station that exited
 /// non-zero over a picture would be the wrong trade for an operator who passed the flag by
 /// accident.
-pub fn run_capturing(
-    config: SessionConfig,
-    screenshot: Option<Screenshot>,
-) -> Result<(), GuiError> {
+pub fn run_with(config: SessionConfig, startup: Startup) -> Result<(), GuiError> {
     let Discarded { layout, note } = Layout::load(&config.definition)?;
     if let Some(note) = note {
         // Before the window, deliberately: this is the one moment the operator still has a
@@ -309,7 +319,7 @@ pub fn run_capturing(
             // The waker has been live since `Session::start`; every call it made before this
             // line did nothing, and nothing was lost by that — see [`RepaintSlot`].
             slot.fill(cc.egui_ctx.clone());
-            Ok(Box::new(App::new(cc, session, layout, screenshot)))
+            Ok(Box::new(App::new(cc, session, layout, startup)))
         }),
     );
 

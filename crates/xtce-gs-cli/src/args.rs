@@ -14,6 +14,7 @@
 use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use xtce_gs_engine::config::DEFAULT_HISTORY_DEPTH;
 use xtce_gs_engine::{SessionConfig, TimeFormat, TimeSource};
 use xtce_gs_link::{CspVersion, Framing, PipelineConfig, RsConfig, SourceSpec};
 
@@ -115,8 +116,12 @@ pub struct RunArgs {
     pub time: TimeArgs,
 
     /// Points of history kept per watched parameter.
-    #[arg(long, default_value_t = xtce_gs_engine::config::DEFAULT_HISTORY_DEPTH)]
-    pub history: usize,
+    ///
+    /// Defaults to `xtce_gs_engine::config::DEFAULT_HISTORY_DEPTH`. An `Option` and not a
+    /// `default_value_t`, because a saved layout carries a depth too and the two have to be
+    /// told apart: given on the command line, this wins; left out, the layout's depth stands.
+    #[arg(long)]
+    pub history: Option<usize>,
 
     /// JSON limits file, keyed by qualified parameter name.
     #[arg(long)]
@@ -168,7 +173,7 @@ impl RunArgs {
             root_container: self.root.clone(),
             source: self.source.parse::<SourceSpec>()?,
             pipeline: self.pipeline.to_pipeline_config()?,
-            history_depth: self.history,
+            history_depth: self.history.unwrap_or(DEFAULT_HISTORY_DEPTH),
             event_capacity: xtce_gs_engine::config::DEFAULT_EVENT_CAPACITY,
             limits: self.limits.clone(),
             record: self.record.clone(),
@@ -209,8 +214,12 @@ pub struct ReplayArgs {
     pub time: TimeArgs,
 
     /// Points of history kept per watched parameter.
-    #[arg(long, default_value_t = xtce_gs_engine::config::DEFAULT_HISTORY_DEPTH)]
-    pub history: usize,
+    ///
+    /// Defaults to `xtce_gs_engine::config::DEFAULT_HISTORY_DEPTH`. An `Option` and not a
+    /// `default_value_t`, because a saved layout carries a depth too and the two have to be
+    /// told apart: given on the command line, this wins; left out, the layout's depth stands.
+    #[arg(long)]
+    pub history: Option<usize>,
 
     /// JSON limits file, keyed by qualified parameter name.
     #[arg(long)]
@@ -264,7 +273,7 @@ impl ReplayArgs {
                 repeat: self.repeat,
             },
             pipeline: self.pipeline.to_pipeline_config()?,
-            history_depth: self.history,
+            history_depth: self.history.unwrap_or(DEFAULT_HISTORY_DEPTH),
             event_capacity: xtce_gs_engine::config::DEFAULT_EVENT_CAPACITY,
             limits: self.limits.clone(),
             record: None,

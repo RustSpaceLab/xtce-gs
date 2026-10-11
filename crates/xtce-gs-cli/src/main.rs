@@ -104,8 +104,11 @@ fn dispatch(cli: Cli) -> Result<(), CliError> {
             if args.headless {
                 run::headless(config, verbose)
             } else {
-                let shot = screenshot(args.screenshot, args.screenshot_after);
-                run::gui(config, shot)
+                let startup = xtce_gs_gui::Startup {
+                    screenshot: screenshot(args.screenshot, args.screenshot_after),
+                    history: args.history,
+                };
+                run::gui(config, startup)
             }
         }
 
@@ -114,8 +117,11 @@ fn dispatch(cli: Cli) -> Result<(), CliError> {
             if args.headless {
                 run::headless(config, verbose)
             } else {
-                let shot = screenshot(args.screenshot, args.screenshot_after);
-                run::gui(config, shot)
+                let startup = xtce_gs_gui::Startup {
+                    screenshot: screenshot(args.screenshot, args.screenshot_after),
+                    history: args.history,
+                };
+                run::gui(config, startup)
             }
         }
 
