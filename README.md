@@ -20,6 +20,18 @@ No JVM, no Node, no database, no browser. The definition is read once into an ar
 are decoded by `xtce-decode` — already measured at ~100× the reference Python implementation —
 and the interface is immediate-mode egui reading a store the decode thread writes.
 
+One binary, and here is what that is worth measured rather than claimed:
+
+```console
+$ cargo build --release -p xtce-gs-cli && ls -l target/release/xtce-gs
+9937696        # 9.48 MiB, macOS x86_64, unstripped
+$ strip target/release/xtce-gs && ls -l target/release/xtce-gs
+8606992        # 8.21 MiB stripped
+```
+
+A Linux build will differ and is not measured here; the release workflow is where that number
+should come from rather than from this paragraph.
+
 | Crate | What it does |
 |---|---|
 | `xtce-gs-core` | owned samples, ring-buffered history, viewport decimation, limits, counters |
