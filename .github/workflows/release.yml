@@ -23,7 +23,11 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-          - os: macos-13
+          # Both macOS targets on the arm64 runner: macos-13 was the Intel image and
+          # GitHub retired it in December 2025, so that label no longer resolves and a job
+          # asking for it queues until it is cancelled. Cross-compiling x86_64 from arm64
+          # needs nothing but the target, which dtolnay/rust-toolchain installs below.
+          - os: macos-14
             target: x86_64-apple-darwin
           - os: macos-14
             target: aarch64-apple-darwin
