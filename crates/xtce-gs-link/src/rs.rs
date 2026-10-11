@@ -1468,7 +1468,17 @@ mod tests {
     /// nonsense is the order itself.
     #[test]
     fn reed_solomon_cannot_see_that_the_derandomiser_was_skipped() {
-        let rs = ReedSolomon::ccsds(32, 1).expect("RS(255,223) is a CCSDS code");
+        // Both codes CCSDS 131.0-B-5 defines, because the first question anybody asks is
+        // whether the shorter one escapes it. It does not: E=16 and E=32 take consecutive
+        // roots from the same generator, so RS(255,223) is a subcode of RS(255,239) and a
+        // codeword of the longer code is a codeword of the shorter one.
+        for parity in [16, 32] {
+            check_the_randomiser_is_invisible(parity);
+        }
+    }
+
+    fn check_the_randomiser_is_invisible(parity: usize) {
+        let rs = ReedSolomon::ccsds(parity, 1).expect("a CCSDS code");
 
         // The premise: the randomiser sequence is a codeword.
         let mut sequence = crate::derand::sequence();
@@ -1484,12 +1494,12 @@ mod tests {
         assert_eq!(rs.decode(&mut arbitrary), Err(RsError::Uncorrectable));
 
         // The consequence: a real frame, encoded and then randomised, decodes clean.
-        let frame: Vec<u8> = (0..223u32)
+        let frame: Vec<u8> = (0..rs.data_length() as u32)
             .map(|i| (i.wrapping_mul(37) ^ 0xA5) as u8)
             .collect();
         let mut encoded = Vec::new();
         rs.encode(&frame, &mut encoded)
-            .expect("223 data symbols is the code's data length");
+            .expect("the frame is exactly the code's data length");
 
         let mut skipped_the_derandomiser = encoded.clone();
         crate::derand::randomize(&mut skipped_the_derandomiser);
