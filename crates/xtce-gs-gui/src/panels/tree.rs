@@ -510,7 +510,7 @@ mod tests {
         tree.search_mut().clear();
         tree.search_mut().push_str("no such parameter");
         tree.refresh(&db, &store);
-        assert!(tree.matches().is_empty());
+        assert!(tree.matches().is_empty(), "matched {:?}", names(&tree, &db));
     }
 
     #[test]

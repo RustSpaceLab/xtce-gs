@@ -370,9 +370,9 @@ mod tests {
     fn an_empty_series_decimates_to_nothing() {
         let mut out = vec![Point { t: 1.0, v: 1.0 }];
         lttb(&[], 100, &mut out);
-        assert!(out.is_empty());
+        assert!(out.is_empty(), "lttb left {out:?}");
         rdp(&[], 1.0, &mut out);
-        assert!(out.is_empty());
+        assert!(out.is_empty(), "rdp left {out:?}");
     }
 
     #[test]

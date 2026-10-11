@@ -753,7 +753,11 @@ mod tests {
 
         store.unwatch(volts);
         layout.capture(&db, &store);
-        assert!(layout.watched.is_empty());
+        assert!(
+            layout.watched.is_empty(),
+            "still watching {:?}",
+            layout.watched
+        );
     }
 
     #[test]
@@ -778,7 +782,11 @@ mod tests {
 
         let mut layout = Layout::default();
         layout.capture(&db, &store);
-        assert!(layout.watched.is_empty());
+        assert!(
+            layout.watched.is_empty(),
+            "captured {:?} with nothing watched",
+            layout.watched
+        );
     }
 
     #[test]
@@ -794,7 +802,11 @@ mod tests {
         let mut layout = Layout::default();
         layout.add_to_plot(0, "/Sat/VOLTS");
         layout.add_to_plot(usize::MAX, "/Sat/VOLTS");
-        assert!(layout.plots.is_empty());
+        assert!(
+            layout.plots.is_empty(),
+            "{} plot(s) appeared",
+            layout.plots.len()
+        );
     }
 
     #[test]
@@ -803,7 +815,11 @@ mod tests {
         let plot = layout.new_plot("VOLTS", "/Sat/VOLTS");
         layout.remove_from_plot(plot, "/Sat/VOLTS");
         assert_eq!(layout.plots.len(), 1);
-        assert!(layout.plots[plot].parameters.is_empty());
+        assert!(
+            layout.plots[plot].parameters.is_empty(),
+            "left {:?} on the plot",
+            layout.plots[plot].parameters
+        );
         assert_eq!(layout.plot_of("/Sat/VOLTS"), None);
     }
 
@@ -824,7 +840,11 @@ mod tests {
         layout.remove_plot(7);
         assert_eq!(layout.plots.len(), 1);
         layout.remove_plot(0);
-        assert!(layout.plots.is_empty());
+        assert!(
+            layout.plots.is_empty(),
+            "{} plot(s) left",
+            layout.plots.len()
+        );
         // And the parameters it held are still watched, which is what makes putting it back
         // instant.
         assert_eq!(layout.watched.len(), 2);

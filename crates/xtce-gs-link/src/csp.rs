@@ -486,7 +486,7 @@ mod tests {
     fn a_header_with_an_empty_payload_is_not_an_error() {
         let (header, payload) = CspHeader::parse(&V1_HEADER, CspVersion::V1).unwrap();
         assert_eq!(header.source(), 5);
-        assert!(payload.is_empty());
+        assert!(payload.is_empty(), "payload is {payload:?}");
     }
 
     #[test]
