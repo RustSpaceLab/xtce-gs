@@ -11,6 +11,10 @@ $ xtce-gs run mission.xml --source udp://0.0.0.0:10015 \
       --framing tm --rs 32 --interleave 5 --derandomize
 ```
 
+`mission.xml` stands for your own definition and the socket for your own radio, so that one is
+the shape rather than something to paste. [Try it without a spacecraft](#try-it-without-a-spacecraft)
+runs against a recording this repository ships.
+
 That is the CCSDS-standard downlink: 1115-octet transfer frames, RS(255,223) interleaved five
 deep, randomised. `--framing packets` is the other half of the world, where the packets arrive
 with nothing wrapped around them. Every flag combination that cannot mean anything is refused
@@ -24,13 +28,15 @@ One binary, and here is what that is worth measured rather than claimed:
 
 ```console
 $ cargo build --release -p xtce-gs-cli && ls -l target/release/xtce-gs
-9937696        # 9.48 MiB, macOS x86_64, unstripped
+9928976        # 9.47 MiB, macOS x86_64, unstripped
 $ strip target/release/xtce-gs && ls -l target/release/xtce-gs
-8606992        # 8.21 MiB stripped
+8595272        # 8.20 MiB stripped
 ```
 
-A Linux build will differ and is not measured here; the release workflow is where that number
-should come from rather than from this paragraph.
+Measured with rustc 1.99.0; the toolchain and the dependency tree both move these by a few
+kilobytes, so run the commands rather than trusting the figures. A Linux build will differ and
+is not measured here; the release workflow is where that number should come from rather than
+from this paragraph.
 
 | Crate | What it does |
 |---|---|
@@ -64,18 +70,37 @@ operator watches, and only the last one needs the definition.
 The recording in `testdata/` is a real JPSS downlink: 7 200 packets, one APID, no sequence
 gaps. Provenance is in `testdata/SOURCES.md`.
 
+A clone has no `xtce-gs` yet, so build it once — either onto your `PATH`:
+
+```console
+$ cargo install --path crates/xtce-gs-cli
+```
+
+or in place, substituting `cargo run --release -p xtce-gs-cli --` for `xtce-gs` below. Either
+way the first build is a few minutes; eframe is most of it.
+
 ```console
 # What is in this stream? No definition needed.
 $ xtce-gs probe testdata/jpss/J01_G011_LZ_2021-04-09T00-00-00Z_V01.DAT1
 
-# Replay it at 100 kB/s into the interface, as if it were arriving now.
+# Replay it into the interface at 100 kB/s, as if it were arriving now. The recording is
+# 511 200 bytes, so that is 5.1 seconds of pass — `--repeat` starts it over at the end,
+# which is what you want while looking at the plots.
 $ xtce-gs replay testdata/jpss/jpss1_geolocation_xtce_v1.xml \
-      testdata/jpss/J01_G011_LZ_2021-04-09T00-00-00Z_V01.DAT1 --rate 100000
+      testdata/jpss/J01_G011_LZ_2021-04-09T00-00-00Z_V01.DAT1 --rate 100000 --repeat
 
 # Or decode the whole thing to CSV with no interface at all.
 $ xtce-gs export testdata/jpss/jpss1_geolocation_xtce_v1.xml \
       testdata/jpss/J01_G011_LZ_2021-04-09T00-00-00Z_V01.DAT1 -o jpss.csv
 ```
+
+The replay opens with three plots already drawn — GPS position, GPS velocity and the attitude
+quaternion, 7 200 points each — because a layout ships beside the definition as
+`jpss1_geolocation_xtce_v1.xml.gs-layout.json`. That is not a special case for the demo: a
+layout is a plain JSON file of qualified parameter names that the interface writes next to
+whatever definition you open, so the arrangement belongs to the mission rather than to your
+machine. Delete it and the station starts empty, which is what a definition with no layout
+does.
 
 ## Building
 
@@ -87,8 +112,18 @@ $ cargo clippy --workspace --all-targets -- -D warnings
 
 `xtce-rs` is pinned by revision in the workspace `Cargo.toml`, the way `xtce-flight` pins it:
 this repository is built against one state of the decoder, and a moving dependency would mean
-an unrelated commit there breaks a build here. Nothing else is needed to build — cargo fetches
-it.
+an unrelated commit there breaks a build here. Cargo fetches it; there is nothing to install
+by hand.
+
+On Linux, eframe does need system libraries that cargo cannot fetch — the same seven CI
+installs:
+
+```console
+$ sudo apt-get install -y libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev \
+      libxcb-xfixes0-dev libxkbcommon-dev libssl-dev libwayland-dev
+```
+
+macOS and Windows need none of it.
 
 ## Scope
 
