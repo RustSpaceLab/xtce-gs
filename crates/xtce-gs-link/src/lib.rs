@@ -40,6 +40,7 @@
 //! * **It does not panic.** It sits on a live downlink fed by hardware nobody here controls,
 //!   so every failure is a `Result` or a counter.
 
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)]
