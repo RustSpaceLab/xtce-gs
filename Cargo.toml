@@ -27,8 +27,8 @@ xtce-gs-gui = { path = "crates/xtce-gs-gui", version = "0.1.0" }
 #
 # Bump both together, in the same commit as the change that needed them, and push `xtce-rs`
 # first — cargo cannot fetch a commit that is not on the remote.
-xtce-model = { git = "https://github.com/RustSpaceLab/xtce-rs", rev = "e45784b28a677f1baea100a6fc6e4554a417931a" }
-xtce-decode = { git = "https://github.com/RustSpaceLab/xtce-rs", rev = "e45784b28a677f1baea100a6fc6e4554a417931a" }
+xtce-model = { git = "https://github.com/RustSpaceLab/xtce-rs", rev = "c9c780e805db686502f695f55b0c0f3de9afc90e" }
+xtce-decode = { git = "https://github.com/RustSpaceLab/xtce-rs", rev = "c9c780e805db686502f695f55b0c0f3de9afc90e" }
 
 # Keep this list short and justified — see CONTRIBUTING.md rule 7. Every entry below names
 # the thing it does that this project will not do by hand.
