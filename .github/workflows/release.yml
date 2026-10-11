@@ -1,0 +1,99 @@
+name: Release
+
+# A tag is the trigger, and the tag is the only thing that decides the version: the workflow
+# refuses a tag whose notes are not written, so a release cannot be cut by accident.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  binaries:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One target failing should not hide whether the others build.
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-13
+            target: x86_64-apple-darwin
+          - os: macos-14
+            target: aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+      # Same seven packages CI installs, and the same reason: eframe compiles against X11,
+      # Wayland and GL even on a runner with no display.
+      - name: System libraries for eframe
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev \
+            libxcb-xfixes0-dev libxkbcommon-dev libssl-dev libwayland-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p xtce-gs-cli --target ${{ matrix.target }}
+      # Measured before and after, because the README quotes both and has no business
+      # guessing the Linux figure.
+      - name: Strip and measure
+        run: |
+          bin="target/${{ matrix.target }}/release/xtce-gs"
+          before=$(wc -c < "$bin")
+          strip "$bin"
+          after=$(wc -c < "$bin")
+          printf '| `%s` | %s | %s |\n' "${{ matrix.target }}" "$before" "$after" > size.md
+          cat size.md
+      - name: Package
+        run: |
+          tar -czf "xtce-gs-${{ github.ref_name }}-${{ matrix.target }}.tar.gz" \
+            -C "target/${{ matrix.target }}/release" xtce-gs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            xtce-gs-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
+            size.md
+
+  release:
+    needs: binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      # Notes live in the repository and are written by a person. No file, no release — the
+      # alternative is a generated commit list, which is what a changelog is for and not what
+      # somebody reading a release page wants.
+      - name: Assemble the notes
+        run: |
+          notes="docs/releases/${GITHUB_REF_NAME}.md"
+          if [ ! -f "$notes" ]; then
+            echo "::error::$notes does not exist; write the release notes before tagging"
+            exit 1
+          fi
+          cp "$notes" notes.md
+          {
+            printf '\n## Binaries\n\n'
+            printf 'Built by this workflow from the tag, stripped, measured on the runner.\n\n'
+            printf '| Target | Bytes | Stripped |\n|---|---|---|\n'
+            cat artifacts/*/size.md
+          } >> notes.md
+          cat notes.md
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            artifacts/*/*.tar.gz
