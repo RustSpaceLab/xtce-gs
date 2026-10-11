@@ -1199,7 +1199,7 @@ mod tests {
         let mut replay = FileReplay::open(&path, 16, None, false).await.unwrap();
         let mut buf = Vec::new();
         assert_eq!(replay.read_chunk(&mut buf).await.unwrap(), 0);
-        assert!(buf.is_empty());
+        assert!(buf.is_empty(), "read {buf:?} from an empty file");
         tokio::fs::remove_file(&path).await.unwrap();
     }
 

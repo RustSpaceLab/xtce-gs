@@ -583,7 +583,8 @@ mod tests {
     fn a_slipped_stream_does_not_lock_when_the_bit_offset_search_is_off() {
         let mut sync = Synchronizer::new(12, CCSDS_ASM.to_vec(), false);
         sync.push(&slip(&stream(&[0x55, 0x66], 12), 3));
-        assert!(drain(&mut sync).is_empty());
+        let frames = drain(&mut sync);
+        assert!(frames.is_empty(), "locked onto {frames:?}");
         assert_eq!(sync.state(), SyncState::Searching);
     }
 
@@ -777,7 +778,8 @@ mod tests {
         let mut sync = Synchronizer::new(8, CCSDS_ASM.to_vec(), false);
         let bytes = stream(&[0x77], 8);
         sync.push(&bytes[..2]);
-        assert!(drain(&mut sync).is_empty());
+        let frames = drain(&mut sync);
+        assert!(frames.is_empty(), "half a marker yielded {frames:?}");
         sync.push(&bytes[2..]);
         assert_eq!(drain(&mut sync), vec![frame(0x77, 8)]);
     }
