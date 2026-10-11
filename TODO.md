@@ -6,7 +6,7 @@ This file is the index: the identifier, where it is, and one line of what it is.
 
 ```console
 $ grep -rn "TODO(gs-link-rs-erasures)" crates/     # the full text of any entry
-$ grep -rn "TODO(" crates/ | wc -l                 # 31 of them, over 21 identifiers
+$ grep -rn "TODO(" crates/ | wc -l                 # 32 of them, over 22 identifiers
 ```
 
 Nothing here is a bug. The bugs found while building this are in
@@ -64,6 +64,7 @@ Ordered by how much you learn per hour spent, not by importance.
 | `gs-gui-app` | `app.rs:497` | Nothing in `app.rs` is tested against a running session, because `Session` has no constructor that does not spawn tasks. A trait over the four accessors `App` uses would fix it, at a vtable per call. |
 | `gs-gui-layout` | `layout.rs:159` | `tree_width` and `events_height` are written and never read back, so a panel the operator drags is narrow again next run. egui 0.35 has no public accessor for the dragged size. |
 | `gs-gui-layout` | `layout.rs:254` | At version 2 the loader will refuse every version-1 layout and the station will not start until the operator deletes a file they did not write. Discard, migrate, or keep refusing. |
+| `gs-gui-history-precedence` | `app.rs:172` | A saved layout's history depth silently overrides `--history`, so the flag does nothing whenever a layout exists — and one now ships with the bundled JPSS definition. Decide whose intent wins; needs clap's `value_source` to tell a given value from a defaulted one. |
 | `gs-gui-plots-monotonic` | `plots.rs:198` | The visible-range binary search assumes time never goes backwards. A spacecraft clock that steps back mid-pass truncates the window. Needs an ingest policy first. |
 
 ## `xtce-gs-cli`

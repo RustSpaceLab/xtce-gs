@@ -169,6 +169,14 @@ impl App {
                 .store()
                 .write()
                 .unwrap_or_else(PoisonError::into_inner);
+            // TODO(gs-gui-history-precedence): this is the saved layout overriding
+            // `--history`, which the CLI documents as "points of history kept per watched
+            // parameter" and does not document as advisory. A flag that looks honoured and is
+            // not is the same failure as `gs-gui-layout` pointing the other way. The decision
+            // is whose intent wins — the flag typed this run, or the depth set in the
+            // interface last run — and it needs clap's `ArgMatches::value_source` threaded out
+            // of `args.rs`, because "given as 4096" and "defaulted to 4096" are the same value
+            // and must stop being the same thing.
             store.set_depth(layout.history_depth.max(MIN_HISTORY_DEPTH));
             layout.restore(&db, &mut store)
         };

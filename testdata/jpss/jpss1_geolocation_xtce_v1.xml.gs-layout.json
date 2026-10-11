@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "watched": [
+    "/JPSS_Geolocation_Packets/ADGPSPOSX",
+    "/JPSS_Geolocation_Packets/ADGPSPOSY",
+    "/JPSS_Geolocation_Packets/ADGPSPOSZ",
+    "/JPSS_Geolocation_Packets/ADGPSVELX",
+    "/JPSS_Geolocation_Packets/ADGPSVELY",
+    "/JPSS_Geolocation_Packets/ADGPSVELZ",
+    "/JPSS_Geolocation_Packets/ADCFAQ1",
+    "/JPSS_Geolocation_Packets/ADCFAQ2",
+    "/JPSS_Geolocation_Packets/ADCFAQ3",
+    "/JPSS_Geolocation_Packets/ADCFAQ4",
+    "/JPSS_Geolocation_Packets/SRC_SEQ_CTR",
+    "/JPSS_Geolocation_Packets/MSEC"
+  ],
+  "plots": [
+    {
+      "title": "GPS position (m)",
+      "parameters": [
+        "/JPSS_Geolocation_Packets/ADGPSPOSX",
+        "/JPSS_Geolocation_Packets/ADGPSPOSY",
+        "/JPSS_Geolocation_Packets/ADGPSPOSZ"
+      ],
+      "height": 200.0,
+      "autoscale": true,
+      "y_range": null
+    },
+    {
+      "title": "GPS velocity (m/s)",
+      "parameters": [
+        "/JPSS_Geolocation_Packets/ADGPSVELX",
+        "/JPSS_Geolocation_Packets/ADGPSVELY",
+        "/JPSS_Geolocation_Packets/ADGPSVELZ"
+      ],
+      "height": 200.0,
+      "autoscale": true,
+      "y_range": null
+    },
+    {
+      "title": "Attitude quaternion",
+      "parameters": [
+        "/JPSS_Geolocation_Packets/ADCFAQ1",
+        "/JPSS_Geolocation_Packets/ADCFAQ2",
+        "/JPSS_Geolocation_Packets/ADCFAQ3",
+        "/JPSS_Geolocation_Packets/ADCFAQ4"
+      ],
+      "height": 200.0,
+      "autoscale": true,
+      "y_range": null
+    }
+  ],
+  "history_depth": 8192,
+  "theme": "dark",
+  "show_raw": false,
+  "tree_width": 300.0,
+  "events_height": 120.0
+}
