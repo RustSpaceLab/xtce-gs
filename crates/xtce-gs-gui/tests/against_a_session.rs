@@ -202,3 +202,72 @@ fn every_panel_fills_from_a_session_that_really_decoded_a_downlink() {
         events.visible().count()
     );
 }
+
+/// The layout that ships beside the JPSS definition opens on three full plots.
+///
+/// The README and the v0.1.0 notes both say so, which is reason enough to assert it: a layout
+/// is resolved by *qualified name* against the definition, and a name that no longer matches
+/// is dropped with a note rather than an error — the station starts either way. So a typo in
+/// the shipped file would leave a visitor looking at the empty window this layout exists to
+/// prevent, and nothing would say why.
+#[test]
+fn the_shipped_layout_opens_on_three_full_plots() {
+    let definition = testdata("jpss1_geolocation_xtce_v1.xml");
+    let discarded = Layout::load(&definition).expect("the shipped layout is readable");
+    assert_eq!(
+        discarded.note, None,
+        "the shipped layout was not read whole: {:?}",
+        discarded.note
+    );
+    let layout = discarded.layout;
+    assert_eq!(
+        layout.plots.len(),
+        3,
+        "the README promises position, velocity and the attitude quaternion"
+    );
+
+    let (_runtime, session) = replay();
+    let db = session.db().clone();
+
+    // Before the first packet, the order `App::new` uses: history begins when a parameter is
+    // watched, so restoring after the replay would assert empty plots and pass.
+    let names: Vec<String> = layout
+        .plots
+        .iter()
+        .flat_map(|plot| plot.parameters.iter().cloned())
+        .collect();
+    assert_eq!(names.len(), 10, "3 position, 3 velocity, 4 quaternion");
+    {
+        let mut store = session.store().write().expect("store");
+        store.set_depth(layout.history_depth);
+        let resolved = layout.restore(&db, &mut store);
+        assert_eq!(
+            resolved,
+            layout.watched.len() + names.len(),
+            "the shipped layout names a parameter this definition does not declare"
+        );
+    }
+
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while Instant::now() < deadline {
+        if session.stats().snapshot().packets_decoded >= 7200 {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert_eq!(session.stats().snapshot().packets_decoded, 7200);
+
+    let store = session.store().read().expect("store");
+    for name in &names {
+        let parameter = db
+            .find_parameter(name)
+            .unwrap_or_else(|| panic!("{name} is not in the definition"));
+        let depth = store
+            .history(parameter)
+            .map_or(0, xtce_gs_core::RingBuffer::len);
+        assert_eq!(
+            depth, 7200,
+            "{name} has {depth} points of history after 7200 packets"
+        );
+    }
+}
