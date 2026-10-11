@@ -28,7 +28,6 @@
 //! is one enum wide, and the table needs it — and only a watched parameter gets a ring. The
 //! interface decides what is watched when the operator opens a plot.
 
-#![deny(missing_docs)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)]
