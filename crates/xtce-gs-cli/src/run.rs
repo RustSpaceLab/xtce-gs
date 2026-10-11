@@ -76,11 +76,8 @@ const CCSDS_INTERLEAVE: [u64; 6] = [1, 2, 3, 4, 5, 8];
 ///
 /// [`CliError::Gui`] for a session that will not start, a layout that will not parse, or a
 /// platform that will not give the process a window.
-pub fn gui(
-    config: SessionConfig,
-    screenshot: Option<xtce_gs_gui::Screenshot>,
-) -> Result<(), CliError> {
-    xtce_gs_gui::run_capturing(config, screenshot).map_err(CliError::from)
+pub fn gui(config: SessionConfig, startup: xtce_gs_gui::Startup) -> Result<(), CliError> {
+    xtce_gs_gui::run_with(config, startup).map_err(CliError::from)
 }
 
 /// Runs with no window, printing counters once a second.

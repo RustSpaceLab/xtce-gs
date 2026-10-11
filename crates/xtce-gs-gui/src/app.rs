@@ -30,7 +30,8 @@ use xtce_gs_engine::Session;
 use xtce_gs_engine::session::log;
 use xtce_model::{ParamId, XtceDb};
 
-use crate::capture::{Capture, Next, Screenshot};
+use crate::Startup;
+use crate::capture::{Capture, Next};
 use crate::layout::Layout;
 use crate::panels::events::Events;
 use crate::panels::plots::{Plots, View};
@@ -165,7 +166,7 @@ impl App {
         cc: &eframe::CreationContext<'_>,
         session: Session,
         mut layout: Layout,
-        screenshot: Option<Screenshot>,
+        startup: Startup,
     ) -> Self {
         let db = Arc::clone(session.db());
         cc.egui_ctx.set_theme(layout.theme.preference());
@@ -177,15 +178,9 @@ impl App {
                 .store()
                 .write()
                 .unwrap_or_else(PoisonError::into_inner);
-            // TODO(gs-gui-history-precedence): this is the saved layout overriding
-            // `--history`, which the CLI documents as "points of history kept per watched
-            // parameter" and does not document as advisory. A flag that looks honoured and is
-            // not is the same failure as `gs-gui-layout` pointing the other way. The decision
-            // is whose intent wins — the flag typed this run, or the depth set in the
-            // interface last run — and it needs clap's `ArgMatches::value_source` threaded out
-            // of `args.rs`, because "given as 4096" and "defaulted to 4096" are the same value
-            // and must stop being the same thing.
-            store.set_depth(layout.history_depth.max(MIN_HISTORY_DEPTH));
+            let depth = depth_in_force(&layout, &startup);
+            layout.history_depth = depth;
+            store.set_depth(depth);
             layout.restore(&db, &mut store)
         };
         if named > 0 {
@@ -203,7 +198,7 @@ impl App {
             db,
             layout,
             status: Status::new(),
-            capture: screenshot.map(Capture::new),
+            capture: startup.screenshot.map(Capture::new),
             // `Tree::new` starts dirty, which is what forces the first frame's copy: the
             // store's generation can legitimately still be 0 at this point.
             tree: Tree::new(),
@@ -525,6 +520,20 @@ impl App {
 /// Split out so that the counting is testable without a window: the case worth getting right
 /// is the one where a definition was edited between two runs, and the operator has to be able
 /// to tell "nothing was saved" from "what was saved is no longer declared".
+/// The history depth in force: what the operator asked for this run, else what the layout
+/// remembers from the last one.
+///
+/// A command line beats a config file everywhere else and does here too. The result is written
+/// back into the layout as well as into the store, so that a save records what was in force —
+/// a depth the operator asked for that reverted silently on the next start would be the same
+/// complaint in a different place.
+fn depth_in_force(layout: &Layout, startup: &Startup) -> usize {
+    startup
+        .history
+        .unwrap_or(layout.history_depth)
+        .max(MIN_HISTORY_DEPTH)
+}
+
 fn restore_report(resolved: usize, named: usize) -> Event {
     if resolved == named {
         Event::info(
@@ -774,5 +783,29 @@ mod tests {
         let event = restore_report(0, 4);
         assert_eq!(event.severity, Severity::Warning);
         assert!(event.message.contains('4'), "{}", event.message);
+    }
+
+    #[test]
+    fn a_history_depth_given_on_the_command_line_beats_the_saved_one() {
+        let layout = Layout {
+            history_depth: 4096,
+            ..Layout::default()
+        };
+        let asked = Startup {
+            history: Some(250_000),
+            ..Startup::default()
+        };
+        assert_eq!(depth_in_force(&layout, &asked), 250_000);
+        assert_eq!(depth_in_force(&layout, &Startup::default()), 4096);
+    }
+
+    #[test]
+    fn a_depth_of_zero_is_lifted_to_the_smallest_legal_one() {
+        let layout = Layout::default();
+        let asked = Startup {
+            history: Some(0),
+            ..Startup::default()
+        };
+        assert_eq!(depth_in_force(&layout, &asked), MIN_HISTORY_DEPTH);
     }
 }
