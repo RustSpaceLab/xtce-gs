@@ -577,11 +577,6 @@ mod tests {
     /// A 32-byte frame with every primary header field that *can* differ from its
     /// neighbours set to a value nothing else has.
     ///
-    /// Version 0, spacecraft 0x2AB, virtual channel 5, OCF flagged; master count 0x11,
-    /// virtual channel count 0x22; secondary header flagged, sync and order clear, segment
-    /// length id 0b11, first header pointer 5. Insert zone 4, secondary header 3, data field
-    /// 13, OCF 4, FECF 2.
-    ///
     /// Three fields are *not* distinguishable here, for two different reasons. Two of them
     /// are fixed by this frame's clear synchronisation flag: CCSDS 132.0-B-3 §4.1.2.7.4
     /// reserves the packet order flag and sets it to `0`, and §4.1.2.7.5 sets the segment
@@ -790,12 +785,6 @@ mod tests {
         assert!(!frame.packet_order_flag());
     }
 
-    /// The segment length identifier's two bits sit directly below the packet order flag, and
-    /// `distinguishable_frame` has the identifier at `0b11` with the flag clear — so a mask
-    /// widened into the flag answers correctly there. Here the flag is set and the identifier
-    /// is not, which CCSDS 132.0-B-3 §4.1.2.7.4 and §4.1.2.7.5 NOTE 2 both allow while the
-    /// synchronisation flag is set, because both fields are undefined on a VCA frame — the
-    /// frame kind TODO(gs-link-frame-vca) is still open about. Only the header word is read.
     #[test]
     fn the_segment_length_identifier_does_not_reach_into_the_packet_order_flag() {
         // Sync set, packet order set, segment length id 0b01, pointer 0.
@@ -807,12 +796,6 @@ mod tests {
         assert_eq!(frame.segment_length_id(), 0b01);
     }
 
-    /// The secondary header length is the low six bits of the identification octet and the
-    /// two above it are a version number, which CCSDS 132.0-B-3 §4.1.3.2.2.2 requires to be
-    /// `00` — so on every other fixture in this file a mask widened into them reads the same
-    /// length. This octet is `0x42`: version `01`, length field 2, three octets in all.
-    /// Accepting it is TODO(gs-link-frame-sh-zero)'s open decision not to check those bits;
-    /// what this pins is that the length is read from its own six and no more.
     #[test]
     fn the_secondary_header_length_does_not_reach_into_the_version_bits() {
         let mut bytes = vec![0x00, 0x00, 0x00, 0x00, 0x98, 0x00];

@@ -65,12 +65,6 @@ fn main() -> ExitCode {
 }
 
 /// Prints a failure and everything under it, once each.
-///
-/// Every variant of every error enum in this workspace is `#[error("{0}")]` over a `#[from]`
-/// field, so the outermost message and its source's message are usually the same string. A
-/// chain printed without this prints it three times — `CliError`, `EngineError`, then
-/// `LinkError` — and an operator reading three identical lines learns to read none of them.
-/// Only a cause that *says something new* is printed.
 fn report(error: &dyn std::error::Error) {
     let mut previous = error.to_string();
     eprintln!("error: {previous}");

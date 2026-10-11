@@ -189,12 +189,6 @@ impl Tree {
 }
 
 /// Whether a parameter's declared type has a place on a numeric axis.
-///
-/// Integer, float and boolean do — a boolean plots as 0 and 1, which is how an operator
-/// watches a relay. A string, a binary blob, an enumeration label and the composite kinds do
-/// not: an enumeration's engineering value is a label, and a label has no order. The two time
-/// kinds are left out as well; an `AbsoluteTimeParameterType` is an instant, and a plot of an
-/// instant against itself is a straight line the operator did not ask for.
 fn is_plottable(db: &XtceDb, parameter: ParamId) -> bool {
     matches!(
         db.type_of(parameter).map(|kind| &kind.kind),

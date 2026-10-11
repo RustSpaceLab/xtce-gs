@@ -154,11 +154,6 @@ pub struct SequenceTracker {
     last: Vec<Option<u16>>,
     /// Per APID: how many gaps have been reported quietly since the last full line, and how
     /// many packets have arrived contiguously since the last gap.
-    ///
-    /// A dropout is one line and that is right. A link losing one packet in three is a
-    /// thousand lines a second, each naming a different sequence count — so `EventLog`'s
-    /// collapsing cannot fold them, and a bounded log fills with them while the one line
-    /// that says something else is evicted. See [`SequenceTracker::observe`].
     burst: Vec<Burst>,
     gaps: u64,
     missing: u64,
@@ -374,12 +369,6 @@ pub struct PacketDecoder {
     stats: Arc<LinkStats>,
     events: Vec<Event>,
     /// Containers already warned about undescribed trailing bits, indexed by container.
-    ///
-    /// A definition that does not describe a whole packet does not describe *any* packet of
-    /// that container, so the warning is one fact about the definition and not one fact per
-    /// packet. Without this, a 7 200-packet replay puts 7 200 identical lines on a log that
-    /// holds 2 048 — the event log collapses repeats, but only while nothing else is
-    /// interleaved, and on a live station something always is.
     warned: Vec<bool>,
 }
 
@@ -726,24 +715,12 @@ mod tests {
 
     /// Gaps and missing packets, derived from *which packets were removed*.
     ///
-    /// The point is that this shares no arithmetic with [`SequenceTracker::observe`]: no
-    /// modulus, no subtraction of one count from another, no reading of a sequence count at
-    /// all. It counts holes in a list. An earlier version of this helper retyped `observe`'s
-    /// own `(current + 16_384 - previous - 1) % 16_384`, which could only ever prove that the
-    /// same expression gives the same answer twice.
-    ///
     /// `apids[i]` is the APID of position `i` in the *complete* stream and `removed` lists
     /// the positions taken out of it. Each APID is counted on its own, because CCSDS
     /// 133.0-B-2 §4.1.3.4 gives each APID its own count. Within one APID's own sub-stream a
     /// maximal run of consecutive removed positions is one gap that says the run's length is
     /// missing — except a run touching the start or the end of that sub-stream, which has no
     /// surviving packet on one side and so nothing that could notice it.
-    ///
-    /// Exact only while a per-APID run is shorter than a whole counter's worth: at 16 383 the
-    /// tracker reports 16 382 and at 16 384 the repeated count is reported as nothing at all,
-    /// where this would still report the run. Both call sites remove one to three in a row,
-    /// which is what a link loses; a fixture that removed thousands would need the wrap rules
-    /// here, and would be back to retyping `observe`.
     fn expected_from_removals(apids: &[u16], removed: &[usize]) -> (u64, u64) {
         let mut kept_by_apid: BTreeMap<u16, Vec<bool>> = BTreeMap::new();
         for (index, apid) in apids.iter().enumerate() {

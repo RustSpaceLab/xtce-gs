@@ -338,7 +338,6 @@ mod tests {
 
     use super::*;
 
-    /// A CUC that is all zeroes is the epoch itself, whatever the widths.
     #[test]
     fn a_cuc_of_zero_is_the_ccsds_epoch_and_that_epoch_is_1958() {
         let time = cuc_from_bytes(&[0, 0, 0, 0, 0, 0], 4, 2, Utc::CCSDS_EPOCH).unwrap();

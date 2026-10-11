@@ -38,15 +38,6 @@ const ACCEPTED: &str = "udp://host:port, tcp://host:port, tcp-listen://host:port
                         file:///path?rate=&chunk=&repeat, or a bare path";
 
 /// A read buffer that does not print itself.
-///
-/// The sources read into their own scratch and copy out, rather than growing the caller's
-/// buffer and truncating it back: `read_chunk` is awaited inside a `tokio::select!` against
-/// the session's shutdown, and a future cancelled between the grow and the truncate would
-/// leave the caller holding a chunk of zeroes it never received. Copying the bytes that did
-/// arrive costs a `memcpy` of what was read; the alternative costs correctness.
-///
-/// `Debug` is hand-written because the UDP scratch is 64 KiB and a derived one would render
-/// every byte of it into whatever log line asked for the source.
 struct Scratch(Vec<u8>);
 
 impl Scratch {
@@ -174,7 +165,7 @@ fn parse_file(rest: &str) -> Result<SourceSpec, LinkError> {
 impl FromStr for SourceSpec {
     type Err = LinkError;
 
-    /// Parses one of the four URL forms.
+    /// Parses one of the four URL forms:
     ///
     /// ```text
     /// udp://0.0.0.0:10015
@@ -184,22 +175,7 @@ impl FromStr for SourceSpec {
     /// /path/to/stream.dat
     /// ```
     ///
-    /// A string with no scheme is a file path, because that is what an operator types and
-    /// because no other variant can be named by a bare word. `repeat` is a bare flag rather
-    /// than `repeat=true`: it is either there or it is not.
-    ///
-    /// The query is parsed only after `file://`. A bare path is taken whole, `?` and all,
-    /// because `?` is a legal character in a file name on every platform this runs on and
-    /// splitting one silently would open a different file than the operator typed. The cost
-    /// is that a `file://` URL cannot name a path containing `?`; such a path has to be given
-    /// bare, and the replay options then come from the command line instead.
-    ///
-    /// # Errors
-    ///
-    /// [`LinkError::Config`] naming what could not be parsed — an unknown scheme, an address
-    /// without a port, a `rate` or `chunk` that is not a number. A file path is not checked
-    /// for existence here; that is [`Source::connect`]'s failure to report, and reporting it
-    /// twice means reporting it differently twice.
+    /// A string with no scheme is a file path.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.trim();
         if s.is_empty() {
@@ -617,14 +593,6 @@ impl TcpListenSource {
 }
 
 /// Whether an `io::Error` describes one connection rather than the socket underneath it.
-///
-/// `accept` reports a connection the client abandoned during the handshake as an error of the
-/// listener, and a peer that vanishes reports as a reset rather than a clean close. Neither
-/// says anything about this station's ability to keep listening, so neither ends the session.
-///
-/// `TimedOut` is deliberately *not* in the set. On a socket with no receive timeout it means
-/// the keepalives failed, which is a link this station should report rather than a peer it
-/// should quietly re-accept in a loop nobody sees.
 fn per_connection(error: &std::io::Error) -> bool {
     use std::io::ErrorKind::{
         BrokenPipe, ConnectionAborted, ConnectionReset, Interrupted, NotConnected,

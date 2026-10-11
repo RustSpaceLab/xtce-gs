@@ -67,11 +67,6 @@ pub const SEQUENCE_LENGTH: usize = 255;
 
 /// The 255-byte sequence of CCSDS 131.0-B-5 §10.4.2, derived from the shift register at
 /// compile time.
-///
-/// A constant rather than a lazily built table: it is 255 bytes, it never changes, and a
-/// `static` behind a lock would cost an atomic per frame to produce a number that was decided
-/// in 1984. Private, because [`sequence`] is the accessor the contract names; see the module
-/// documentation for the bit order it is derived under.
 const SEQUENCE: [u8; SEQUENCE_LENGTH] = build_sequence();
 
 /// Runs the degree-8 shift register of CCSDS 131.0-B-5 §10.4.2 for one full period.
@@ -150,11 +145,6 @@ mod tests {
         assert_eq!(&sequence()[..PUBLISHED_START.len()], &PUBLISHED_START);
     }
 
-    /// The head alone does not pin the taps: a wrong tap set can reproduce the first octets
-    /// and diverge later in the period. This is the byte the published tables end on.
-    ///
-    /// Checked against the independent table in `opensatelliteproject/libsathelper`
-    /// (`src/derandomizer.cpp`), whose whole 255 bytes agree with this derivation.
     #[test]
     fn the_sequence_ends_on_the_byte_the_published_tables_end_on() {
         assert_eq!(sequence()[SEQUENCE_LENGTH - 1], 0x58);
@@ -164,9 +154,6 @@ mod tests {
         );
     }
 
-    /// `h(x)` is primitive, so the run of 2040 bits is eight whole periods of a maximal-length
-    /// sequence and every byte but the all-zero one turns up exactly once. A non-primitive tap
-    /// set fails this even when it happens to match the head.
     #[test]
     fn every_byte_value_but_zero_appears_exactly_once() {
         let mut seen = [0u32; 256];
@@ -208,7 +195,6 @@ mod tests {
         assert_eq!(data, original);
     }
 
-    /// The claim the module makes in prose, asserted: there is one operation, not two.
     #[test]
     fn randomize_and_derandomize_are_the_same_operation() {
         let original: Vec<u8> = (0..600u32).map(|i| (i % 256) as u8).collect();
@@ -226,7 +212,6 @@ mod tests {
         assert_eq!(data, [] as [u8; 0]);
     }
 
-    /// A codeword longer than one period repeats the sequence rather than running off it.
     #[test]
     fn the_sequence_repeats_after_a_whole_period() {
         let mut data = vec![0u8; SEQUENCE_LENGTH * 2];

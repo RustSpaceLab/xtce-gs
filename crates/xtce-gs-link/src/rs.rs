@@ -706,11 +706,6 @@ impl ReedSolomon {
 
     /// Forney's formula: the magnitude of the error at each located position.
     ///
-    /// Applies each correction to `codeword`, records the positions that actually changed in
-    /// `repaired`, and returns how many there were. A located position whose magnitude comes
-    /// out zero was not in error, so it is not counted — the caller's number is symbols
-    /// repaired, not roots found.
-    ///
     /// It cannot fail. Karn's `decode_rs.h` refuses here when the formal derivative of
     /// `lambda` vanishes at a root — a repeated root, describing no real error pattern — but
     /// this decoder has already excluded that: it runs only when the Chien search returned
@@ -962,16 +957,6 @@ mod tests {
     }
 
     /// Asserts that a block `decode` returned `Ok` for really is a codeword.
-    ///
-    /// This is what a success from a Reed-Solomon decoder claims and the only part of the
-    /// claim a test can check: re-encode the data half of what came back and the parity must
-    /// come back identical. Asserting instead that the result differs from the transmitted
-    /// block is a tautology — `Ok` bounds the changes by `E`, the received word was `E + 1`
-    /// away, so the triangle inequality already settles it — and a decoder that dropped its
-    /// final syndrome re-check would pass that assertion while handing back rubbish.
-    ///
-    /// It cannot see a received word that landed inside *another* codeword's decoding sphere;
-    /// nothing can. That is the case the caller's `E + 1` doc describes.
     fn assert_is_a_codeword(code: &ReedSolomon, block: &[u8]) {
         let mut reencoded = Vec::new();
         code.encode(&block[..code.data_length()], &mut reencoded)
@@ -1013,8 +998,6 @@ mod tests {
         }
     }
 
-    /// Both directions, because a table built backwards passes a one-directional test: it is
-    /// still an involution pair, just the wrong one.
     #[test]
     fn the_dual_basis_transforms_undo_each_other_in_both_directions() {
         for symbol in 0..=u8::MAX {
@@ -1023,8 +1006,6 @@ mod tests {
         }
     }
 
-    /// The transform is linear and invertible over GF(2)^8, so it permutes the 256 octets. A
-    /// table with a repeated entry would still round-trip for the values it happened to cover.
     #[test]
     fn the_dual_basis_transform_is_a_permutation_of_every_byte() {
         let mut seen = [false; 256];
@@ -1057,9 +1038,6 @@ mod tests {
         }
     }
 
-    /// The encoder reads the generator in index form and adds, which silently multiplies by
-    /// one where a coefficient is zero. No generator with consecutive roots has a zero
-    /// coefficient, and this is where that assumption is written down.
     #[test]
     fn no_generator_coefficient_is_zero() {
         for (parity_symbols, generator) in [(16usize, &GENERATOR_E8), (32, &GENERATOR_E16)] {
@@ -1076,8 +1054,6 @@ mod tests {
         assert_eq!(ROOT_SPACING * INVERSE_ROOT_SPACING % CODEWORD_SYMBOLS, 1);
     }
 
-    /// `F(x) = 0x187` has to be primitive or the shift register visits fewer than 255 values
-    /// and the log table has holes in it.
     #[test]
     fn the_field_tables_invert_each_other_over_the_whole_field() {
         assert_eq!(ALPHA_TO[0], 1);
@@ -1094,9 +1070,6 @@ mod tests {
         assert!(!seen[0], "zero is not a power of alpha");
     }
 
-    /// The whole of the encoder in one assertion: field, generator, root range, the LFSR, the
-    /// basis transform on the parity and the absence of one on the data. A table comparison
-    /// alone would not catch a wrong first root.
     #[test]
     fn a_codeword_matches_phil_karns_encoder_byte_for_byte() {
         let code = codec(32, 1);
@@ -1154,9 +1127,6 @@ mod tests {
         }
     }
 
-    /// Every position, because the Chien search maps a root to a position through the inverse
-    /// of the root spacing and a decoder that uses the wrong step corrects position `11 * i`
-    /// instead of `i`. On a single error at position 0 the two agree.
     #[test]
     fn every_single_symbol_position_in_a_block_is_correctable() {
         let code = codec(32, 1);
@@ -1201,16 +1171,6 @@ mod tests {
     }
 
     /// One symbol past the capacity, over many messages.
-    ///
-    /// `Uncorrectable` is asserted as *usually*, not always, and that is not a hedge: a
-    /// received word that is `E + 1` symbols from the transmitted codeword can be `E` or fewer
-    /// from a different one, and then the decoder lands on that codeword, the syndromes of the
-    /// result really are zero, and no check inside a Reed-Solomon decoder can tell. What must
-    /// hold every time is the weaker statement below — the decoder either refuses, or does not
-    /// hand back something it claims is the transmitted frame when it is not. For RS(255, 223)
-    /// the fraction of received words that fall inside another sphere is about `1 / 16!`, so
-    /// in practice every trial here refuses; the loop asserts three quarters so that the day
-    /// it does happen the suite reports it rather than flapping.
     #[test]
     fn one_error_past_the_capacity_is_usually_refused_and_is_never_silently_wrong() {
         let code = codec(32, 1);
@@ -1248,13 +1208,6 @@ mod tests {
         );
     }
 
-    /// The entire reason interleaving exists, in one test.
-    ///
-    /// Symbol `i` of the block belongs to codeword `i mod I`, so `E * I` consecutive symbols
-    /// hit every residue class exactly `E` times: every codeword gets exactly its capacity and
-    /// the burst comes out. `(E + 1) * I` consecutive symbols hit every class `E + 1` times
-    /// and every codeword is over. Both hold wherever the burst starts, which is why the step
-    /// past the capacity is `+ I` and not `+ 1`.
     #[test]
     fn a_burst_of_the_capacity_times_the_depth_is_corrected_and_one_depth_more_is_not() {
         let code = codec(32, 5);
@@ -1292,16 +1245,6 @@ mod tests {
 
     /// The mis-correction the two loops above only assert is *not silently wrong*, built on
     /// purpose so that it happens every run.
-    ///
-    /// Two codewords whose messages differ in one symbol differ in exactly `2E + 1` places:
-    /// at least that, because `2E + 1` is the minimum distance of an MDS code, and at most
-    /// that, because only the one message symbol and the `2E` check symbols can move. Move a
-    /// received word `E + 1` of those steps and it sits `E` from the *other* codeword, so a
-    /// decoder that is working correctly repairs it into that one, reports `Ok(E)`, and hands
-    /// on a frame that was never transmitted. Nothing inside a Reed-Solomon decoder can see
-    /// this — the result really is a codeword, which is what [`assert_is_a_codeword`] checks
-    /// and all a success can ever claim. It is the module documentation's reason for counting
-    /// corrections instead of trusting them.
     #[test]
     fn a_constructed_near_miss_is_corrected_into_the_wrong_codeword_and_called_success() {
         let code = codec(32, 1);
@@ -1369,8 +1312,6 @@ mod tests {
         }
     }
 
-    /// A short frame silently padded to a codeword decodes cleanly to bytes nobody sent, so
-    /// the encoder refuses rather than pads.
     #[test]
     fn a_message_of_the_wrong_length_is_refused() {
         let code = codec(16, 2);
@@ -1404,8 +1345,6 @@ mod tests {
         assert_eq!(deep.interleave(), 5);
     }
 
-    /// One error in the last codeword must not leave the first `I - 1` repaired: the caller
-    /// takes the first `data_length` bytes as a frame and would parse a half-corrected one.
     #[test]
     fn an_uncorrectable_codeword_leaves_the_whole_block_as_it_was_found() {
         let code = codec(16, 3);
@@ -1452,20 +1391,12 @@ mod tests {
     }
     /// Reed-Solomon cannot tell you that you forgot to derandomise.
     ///
-    /// The pipeline is `synchronise → derandomise → Reed-Solomon`, and the temptation is to
-    /// put the error-correcting code first, on the theory that a check this strong would
-    /// notice a block that had not been derandomised yet. It does not, and the reason is
-    /// worth stating once where somebody reordering the pipeline will read it.
-    ///
     /// The randomiser sequence of CCSDS 131.0-B-5 §10.4 is 255 octets. An RS(255,223)
     /// codeword is 255 symbols over GF(2^8), and this code is linear: the sum of two
     /// codewords is a codeword, and over GF(2) that sum is XOR. The sequence happens to be a
     /// codeword itself — so a randomised frame, which is `codeword XOR sequence`, is also a
     /// codeword. Exactly. Zero syndromes, zero corrections, and a block that disagrees with
     /// the frame it came from in every single symbol.
-    ///
-    /// So the only thing standing between a misordered pipeline and 255 bytes of confident
-    /// nonsense is the order itself.
     #[test]
     fn reed_solomon_cannot_see_that_the_derandomiser_was_skipped() {
         // Both codes CCSDS 131.0-B-5 defines, because the first question anybody asks is

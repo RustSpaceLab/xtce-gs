@@ -55,16 +55,8 @@ pub const PROGRESS_PACKETS: u64 = 1000;
 
 /// Lengths worth trying on a stream nobody has documented.
 ///
-/// 1115 is RS(255, 223) interleaved 5 deep, which is most of the missions in reach; 1279 is
-/// *that same link* measured marker to marker with the parity and the ASM counted, which is
-/// what an operator is usually told when they are told a number at all; 2048 is a common
-/// uncoded frame; 892 is RS(255, 223) interleaved 4 deep.
-///
-/// They are not all the same quantity, and that is the point of printing two columns per
-/// row: 1279 matching as a *stride* and 1115 matching as a *frame* are the same link, and an
-/// operator handed 1279 as a `--frame-length` gets a station that locks once and then finds
-/// nothing. [`advise`] is what turns a measured stride back into flags, and it is the line to
-/// read rather than the table.
+/// 1115 is RS(255,223) interleaved 5 deep; 1279 is that same link measured marker to marker,
+/// with the parity and the ASM counted, which is the number an operator is usually quoted.
 const FRAME_LENGTH_CANDIDATES: [u64; 4] = [1115, 1279, 2048, 892];
 
 /// Symbols in a Reed-Solomon codeword: CCSDS 131.0-B-5 section 4.
@@ -197,12 +189,6 @@ fn status_line(line: &mut String, snapshot: &StatsSnapshot, framed: bool) {
 }
 
 /// Prints the log lines `cursor` has not seen to stderr and moves it past them.
-///
-/// A cursor and never [`EventLog::clear`]: the log belongs to the session and the interface
-/// may be reading it too. [`EventLog::push`] bumps a collapsed line's count on every repeat,
-/// and the cursor is counted in pushes, so a line that keeps happening reprints with a rising
-/// count — which is what an operator watching a failing link wants, and what a printer that
-/// remembered the message instead of the position would suppress.
 fn print_events(log: &Mutex<EventLog>, cursor: &mut EventCursor, verbose: bool) {
     for line in unprinted_events(log, cursor, verbose) {
         eprintln!("{line}");
@@ -210,30 +196,9 @@ fn print_events(log: &Mutex<EventLog>, cursor: &mut EventCursor, verbose: bool) 
 }
 
 /// How many pushes into an [`EventLog`] a printer has already considered.
-///
-/// A position and deliberately **not** a timestamp. [`Utc::now`] is `SystemTime::now`, whose
-/// granularity here is about a microsecond, so two events raised back to back usually carry
-/// the *same* stamp: a loop building 100 000 pairs of `Event::warning` and comparing their
-/// `time` found 93 258 of them tied. A cursor that skipped `time <= last` therefore dropped
-/// the second of such a pair, permanently, because the cursor only moves forward — and the
-/// line that costs an operator most is the last one, since [`headless`] prints once more
-/// after [`Session::shutdown`] and that is the line saying why the session stopped.
 type EventCursor = u64;
 
 /// The lines `cursor` has not seen yet, oldest first, moving it past them.
-///
-/// # Why a push count is an exact cursor
-///
-/// [`EventLog::total`] counts every push, repeats included, and [`EventLog::iter`] yields the
-/// distinct entries still held with how many pushes each stands for. So the entries account
-/// for the last `sum(count)` pushes, and the entry ending at push `n` can be named by `n`
-/// alone. That name survives eviction — dropping the oldest entry lowers `sum(count)` by
-/// exactly what it stood for, leaving every surviving `n` where it was — and only the *last*
-/// entry's count can grow, which is what makes a collapsed line reprint when, and only when,
-/// its count has risen.
-///
-/// The cursor moves past every entry it considers, printed or not, so an [`Severity::Info`]
-/// line held back without `--verbose` cannot make the warning behind it reprint.
 fn unprinted_events(log: &Mutex<EventLog>, cursor: &mut EventCursor, verbose: bool) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     let guard = log.lock().unwrap_or_else(PoisonError::into_inner);
@@ -273,14 +238,6 @@ fn unprinted_events(log: &Mutex<EventLog>, cursor: &mut EventCursor, verbose: bo
 /// default disposition kills the process outright, and a process killed by a signal runs no
 /// destructor: up to [`xtce_gs_engine::record::RECORD_BUFFER_BYTES`] of recording never
 /// reaches the file and [`xtce_gs_engine::record::Recorder`]'s `Drop` safety net never runs.
-///
-/// Measured with `xtce-gs run … --headless --record`, killed two seconds in: with ctrl-c
-/// alone handled, `kill -TERM` ended the process with status 143, the log stopped at
-/// `reading file://…` with no final counter line, and the recording ended at the last full
-/// buffer; with this, `kill -TERM` and `kill -INT` both exit 0, print the final line, and
-/// leave a recording exactly as long as the `bytes=` the station reports.
-///
-/// Windows has no SIGTERM and `ctrl_c` there already covers what the console sends.
 async fn stop_requested() -> std::io::Result<()> {
     #[cfg(unix)]
     {
@@ -536,13 +493,6 @@ async fn export_loop(
 }
 
 /// Whether a failure is the reader at the other end of the output going away.
-///
-/// `xtce-gs export … | head -1` is an ordinary way to look at an export — this module's
-/// header names redirection as what the subcommand is for — and Rust masks SIGPIPE, so a
-/// write to a pipe nobody is reading comes back as `EPIPE` instead of ending the process.
-/// Treating that as a failure gives exit 1 and `error: Broken pipe (os error 32)`, which
-/// aborts any `set -e` script that samples the header of a CSV. Nothing is lost that the
-/// operator asked for: the reader stopped listening first.
 fn is_broken_pipe(error: &EngineError) -> bool {
     matches!(error, EngineError::Io(io) if io.kind() == std::io::ErrorKind::BrokenPipe)
 }
@@ -907,11 +857,6 @@ fn report_frame_trial<W: Write>(
 /// whole number of 255-symbol codewords when the link is coded. So the block is the stride
 /// less the four marker octets, and a block that divides by 255 is Reed-Solomon with the
 /// quotient as the interleaving depth.
-///
-/// The parity cannot be recovered from the stride — E=8 and E=16 produce the same block
-/// length and differ only in how much of it is the frame — so both are offered. Guessing one
-/// would be guessing the frame length, and a frame length that is wrong by 80 octets per
-/// codeword is a synchroniser that never finds a second marker.
 fn advise(stride: u64) -> Vec<String> {
     let Some(block) = stride
         .checked_sub(CCSDS_ASM.len() as u64)
@@ -956,12 +901,6 @@ mod tests {
     use super::*;
 
     /// A definition with one container and one 32-bit parameter.
-    ///
-    /// Written from the test rather than read out of the sibling `xtce-rs` checkout the way
-    /// the engine's and the link crate's fixtures are: a test that skips depending on what
-    /// else the developer happens to have cloned is a test that stops being run, and nothing
-    /// below needs a mission — what is under test is where the export loop stops and what it
-    /// reports, not what the values mean.
     const MINIMAL_XTCE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <xtce:SpaceSystem name="TestSystem"
                   xmlns:xtce="http://www.omg.org/spec/XTCE/20180204">

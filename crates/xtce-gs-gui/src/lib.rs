@@ -191,12 +191,6 @@ struct Failure {
 
 impl eframe::App for Failure {
     /// One panel, one message, and no session behind it.
-    ///
-    /// No [`eframe::App::logic`] and no repaint on a timer: there is nothing here that moves
-    /// on its own. Input still draws — `egui_winit` answers a pointer event with
-    /// `EventResponse { repaint: true, .. }`, which `eframe` turns into the next pass — and
-    /// the window's own close button does not go through egui at all, so a station cannot
-    /// get stuck on its own error dialog.
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ui, |ui| {
             ui.heading("The session did not start");
@@ -332,12 +326,6 @@ mod tests {
     use super::*;
 
     /// A context that has drawn, and so is not asking for anything.
-    ///
-    /// A fresh [`egui::Context`] starts with an outstanding repaint of its own — egui runs a
-    /// couple of passes at the start on purpose — so asking a brand new one whether a
-    /// repaint has been requested answers yes before anybody has requested one. Running
-    /// passes until it settles is what makes `has_requested_repaint` mean what these tests
-    /// read it as.
     fn settled_context() -> egui::Context {
         let context = egui::Context::default();
         for _ in 0..8 {

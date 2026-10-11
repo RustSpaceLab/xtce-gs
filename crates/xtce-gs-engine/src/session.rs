@@ -82,29 +82,10 @@ pub const PACKET_QUEUE_DEPTH: usize = 1024;
 
 /// Consecutive failed reads tolerated before the source is called gone.
 ///
-/// A read failure is not always the end, and the failures this budget is for are the ones the
-/// sources this station actually opens can produce:
-///
-/// * `Interrupted` on a file replay. `std::io::Read::read` is documented to surface `EINTR`
-///   rather than retry it, and [`xtce_gs_link::source::FileReplay`] reads a `tokio::fs::File`
-///   through exactly that — so a signal landing in the blocking read is a failure whose only
-///   correct answer is another read, and a process taking signals can take several.
-/// * `ConnectionReset` on `tcp://`. A peer that vanishes resets rather than closing, and the
-///   reset is reported on the next read; a station that ended the pass on the first one would
-///   end it over a feeder that was restarted.
-/// * `TimedOut` on `tcp-listen://`, which `source::per_connection` deliberately excludes from
-///   the disconnects it swallows, so it arrives here instead.
-///
-/// **Not UDP.** [`xtce_gs_link::source::UdpSource::bind`] binds and never calls `connect` and
-/// never sends, so there is no last send for an ICMP port-unreachable to be reported against
-/// and the `ConnectionReset`-on-a-connected-socket case does not arise on this path.
-///
-/// `WouldBlock` is in [`is_transient`]'s set too, as belt-and-braces: tokio's readiness loop
-/// consumes it before a read ever returns, so it is not what this budget is sized for.
-///
-/// A reset socket answers every read the same way and answers it immediately, so the retry is
-/// a spin unless it is bounded: a failure that repeats this many times with no successful read
-/// in between is a source that is not coming back, and the session stops.
+/// The transient ones are `Interrupted` (a signal landing in a file replay's blocking read),
+/// `ConnectionReset` (a `tcp://` peer that vanished rather than closed) and `TimedOut` on
+/// `tcp-listen://`. A reset socket answers every read the same way and answers it at once, so
+/// without a bound the retry is a spin.
 const READ_ERROR_LIMIT: u32 = 16;
 
 /// What the engine calls when a batch has been ingested.
@@ -537,17 +518,6 @@ impl Dispatch {
     }
 
     /// Appends to the ring, dropping its oldest *packet* when it is full. The live policy.
-    ///
-    /// A [`Acquired::Restart`] in the ring is never what gets dropped. It is one byte of
-    /// bookkeeping and it is the whole reason the restart travels in the queue rather than
-    /// beside it: losing it leaves `PacketDecoder` and `SequenceTracker` holding state from
-    /// before a stream boundary, and the sequence counts across that boundary then read as
-    /// thousands of packets missing that were never sent. Dropping the oldest packet costs
-    /// one packet; dropping the marker costs the rest of the pass.
-    ///
-    /// The only source that is both lossy and able to restart is `tcp-listen://`, so this
-    /// runs when a feeder reconnects while the decoder is behind — which is exactly when the
-    /// ring is full.
     fn push(&mut self, item: Acquired) {
         if self.backlog.len() >= self.capacity {
             let oldest_packet = self
@@ -569,17 +539,6 @@ impl Dispatch {
     }
 
     /// Empties the ring into the channel, waiting for room, at the end of a stream.
-    ///
-    /// Called once, when the source has ended: the last few hundred packets of a pass are in
-    /// the ring precisely when the pass was busy at the end, and they are exactly the ones an
-    /// operator is about to look at.
-    ///
-    /// Two of the four sources reach it, and only one of those has anything in the ring.
-    /// `Ok(0)` comes from `tcp://` when the peer closes and from `file://` at the end of the
-    /// replay; `udp://` documents that it never returns `Ok(0)` — a bound socket has no end —
-    /// and `tcp-listen://` re-accepts instead of ending, so neither arrives here at all. Of
-    /// the two that do, `file://` is the source that is not lossy, so its ring is empty by
-    /// construction and this is a no-op. `tcp://` is the one case with packets to save.
     async fn drain(&mut self, stop: &mut watch::Receiver<bool>) -> Result<(), Gone> {
         while let Some(item) = self.backlog.pop_front() {
             self.wait_and_send(item, stop).await?;
@@ -608,17 +567,6 @@ struct Acquisition {
 }
 
 /// Whether a read failure is worth another read.
-///
-/// Everything not listed is fatal, including [`LinkError::Config`] — a source that refuses its
-/// own configuration will refuse it again — and [`LinkError::Ended`], which is not a failure at
-/// all but a read issued after the stream finished.
-///
-/// The `Ended` arm cannot fire from the only caller, and it is the caller that makes it so:
-/// `Ended` is produced only by a read *after* one that returned `Ok(0)`, and [`acquire`]
-/// breaks out of its loop on the `Ok(0)` and never issues that second read. `LinkError`'s own
-/// doc says the same from the other side — "a caller that stops on `Ok(0)` never sees
-/// `Ended`". The arm stays because an exhaustive match over three variants costs nothing and
-/// makes the next variant somebody adds a compile error here rather than a silent `false`.
 fn is_transient(error: &LinkError) -> bool {
     use std::io::ErrorKind::{ConnectionReset, Interrupted, TimedOut, WouldBlock};
     match error {
@@ -705,17 +653,6 @@ async fn open(task: &mut Acquisition) -> Option<(Source, Option<Recorder>)> {
 }
 
 /// Says why acquisition stopped, and tells the two reasons apart.
-///
-/// The channel to the decode thread closes for two reasons that look identical from here: the
-/// session was shut down and the receiver went with it, or the decode thread ended on its own
-/// — which, the sender aside, means it panicked. An operator who closed a window should not
-/// read that a thread died, and one whose thread died must not read nothing at all.
-///
-/// The stop flag is read here rather than carried in `Gone`, which would be exact and would
-/// make four call sites match on a two-variant enum. What that exactness would buy is the
-/// right sentence in one interleaving: a decode thread that panics in the same instant the
-/// operator closes the window is reported as a close. That is a race between two things that
-/// both end the session, and the counters say the same either way.
 fn report_decoder_gone(task: &Acquisition) {
     if *task.stop.borrow() {
         log(
@@ -1222,22 +1159,6 @@ mod tests {
     }
 
     /// A session shut down before the acquisition task is ever polled opens nothing.
-    ///
-    /// The ordering is fixed by the runtime and not by a sleep: this is a current-thread
-    /// test, so the task `Session::start` spawned cannot be polled until this future
-    /// awaits, and `Session::shutdown` is synchronous. The stop is therefore in the watch
-    /// before the task's first poll, every run.
-    ///
-    /// Two things are asserted, and they are the two that leave a trace: no "reading" line
-    /// on the event log and no recording file. An operator who closed the window before it
-    /// opened would otherwise be left with a zero-byte recording and a log claiming a station
-    /// is reading a source nobody is reading. The third guard on this path — the `select!`
-    /// over `Source::connect` — is not separately asserted here, because what it buys is time
-    /// on a `tcp://` connect to an unrouted address and a file open leaves nothing behind.
-    ///
-    /// `stop.is_closed()` is how this waits for the task to have *finished*: the acquisition
-    /// task holds the only receiver, and `is_running` cannot answer it because `shutdown`
-    /// flips that flag itself.
     #[tokio::test]
     async fn a_session_stopped_before_the_first_poll_opens_neither_source_nor_recording() {
         let base = std::env::temp_dir().join(format!(
@@ -1411,12 +1332,6 @@ mod tests {
     }
 
     /// A recording cut off mid-packet must say so.
-    ///
-    /// A space packet declares its own length, so a stream that ends inside one leaves the
-    /// assembler holding a partial that nothing can complete. Before the flush at the
-    /// `Ok(0)` arm it went with the pipeline: no counter, no event, a clean exit and a packet
-    /// count one short of what the operator counted in the file. The same hole was found in
-    /// `xtce-gs export` first, which is why this one is here.
     #[tokio::test]
     async fn a_stream_that_ends_inside_a_packet_reports_the_partial() {
         let (definition, stream) = jpss();
