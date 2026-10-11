@@ -3418,6 +3418,7 @@ dependencies = [
  "eframe",
  "egui",
  "egui_plot",
+ "image",
  "serde",
  "serde_json",
  "thiserror 2.0.20",

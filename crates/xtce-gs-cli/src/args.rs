@@ -55,6 +55,13 @@ pub const DEFAULT_INTERLEAVE: usize = 1;
 /// be 600 MB of rings for an export that never looks in one.
 pub const EXPORT_HISTORY_DEPTH: usize = 1;
 
+/// Seconds a `--screenshot` waits by default.
+///
+/// The bundled JPSS recording is 5.1 seconds of pass at the rate the README's example uses,
+/// so ten seconds is a whole pass and some of a second one — long enough that every plot in
+/// the shipped layout is drawn from a full orbit rather than from the start of one.
+pub const DEFAULT_SCREENSHOT_DELAY: u64 = 10;
+
 /// A ground station for CCSDS telemetry described by XTCE.
 #[derive(Parser, Debug)]
 #[command(name = "xtce-gs", version, about, long_about = None)]
@@ -126,6 +133,20 @@ pub struct RunArgs {
     /// Run without a window, printing counters once a second.
     #[arg(long)]
     pub headless: bool,
+
+    /// Write a PNG of the window once it has filled, then exit.
+    ///
+    /// The window photographs itself, so this needs no screen-recording permission and
+    /// produces the same image on any machine that can open it.
+    #[arg(long, value_name = "PATH")]
+    pub screenshot: Option<PathBuf>,
+
+    /// Seconds to let the station fill before the screenshot is taken.
+    ///
+    /// Every plot is empty until packets arrive, so a picture taken immediately is a true and
+    /// useless one. How long is a property of the source, which only you know.
+    #[arg(long, value_name = "SECS", default_value_t = DEFAULT_SCREENSHOT_DELAY)]
+    pub screenshot_after: u64,
 }
 
 impl RunArgs {
@@ -202,6 +223,20 @@ pub struct ReplayArgs {
     /// Run without a window, printing counters once a second.
     #[arg(long)]
     pub headless: bool,
+
+    /// Write a PNG of the window once it has filled, then exit.
+    ///
+    /// The window photographs itself, so this needs no screen-recording permission and
+    /// produces the same image on any machine that can open it.
+    #[arg(long, value_name = "PATH")]
+    pub screenshot: Option<PathBuf>,
+
+    /// Seconds to let the station fill before the screenshot is taken.
+    ///
+    /// Every plot is empty until packets arrive, so a picture taken immediately is a true and
+    /// useless one. How long is a property of the source, which only you know.
+    #[arg(long, value_name = "SECS", default_value_t = DEFAULT_SCREENSHOT_DELAY)]
+    pub screenshot_after: u64,
 }
 
 impl ReplayArgs {

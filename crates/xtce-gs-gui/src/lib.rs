@@ -56,12 +56,14 @@
 )]
 
 pub mod app;
+pub mod capture;
 pub mod error;
 pub mod fmt;
 pub mod layout;
 pub mod panels;
 
 pub use app::App;
+pub use capture::Screenshot;
 pub use error::GuiError;
 pub use layout::{Discarded, Layout, PlotLayout, Theme};
 
@@ -252,6 +254,25 @@ impl eframe::App for Failure {
 /// the operator has to fix, and a machine with no display is a machine where this is being
 /// read off a terminal anyway.
 pub fn run(config: SessionConfig) -> Result<(), GuiError> {
+    run_capturing(config, None)
+}
+
+/// [`run`], and a picture of the window on the way past.
+///
+/// With `screenshot` given, the station runs normally until the delay in it has passed, writes
+/// its own framebuffer to the path and closes. It is how the image in the README is made —
+/// see [`crate::capture`] for why the window takes the picture rather than a screen grabber.
+///
+/// # Errors
+///
+/// As [`run`]. A screenshot that cannot be written is reported on the terminal and does not
+/// fail the run: the session was real and its counters were real, and a station that exited
+/// non-zero over a picture would be the wrong trade for an operator who passed the flag by
+/// accident.
+pub fn run_capturing(
+    config: SessionConfig,
+    screenshot: Option<Screenshot>,
+) -> Result<(), GuiError> {
     let Discarded { layout, note } = Layout::load(&config.definition)?;
     if let Some(note) = note {
         // Before the window, deliberately: this is the one moment the operator still has a
@@ -294,7 +315,7 @@ pub fn run(config: SessionConfig) -> Result<(), GuiError> {
             // The waker has been live since `Session::start`; every call it made before this
             // line did nothing, and nothing was lost by that — see [`RepaintSlot`].
             slot.fill(cc.egui_ctx.clone());
-            Ok(Box::new(App::new(cc, session, layout)))
+            Ok(Box::new(App::new(cc, session, layout, screenshot)))
         }),
     );
 

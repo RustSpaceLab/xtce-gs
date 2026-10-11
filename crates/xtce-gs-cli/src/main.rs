@@ -19,7 +19,9 @@
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+use std::path::PathBuf;
 use std::process::ExitCode;
+use std::time::Duration;
 
 use clap::Parser;
 
@@ -83,6 +85,18 @@ fn report(error: &dyn std::error::Error) {
     }
 }
 
+/// Pairs `--screenshot` with `--screenshot-after`.
+///
+/// The delay has a default and the path does not, so the path is what decides whether a
+/// picture is wanted at all; `--screenshot-after` on its own is a no-op rather than an error,
+/// the same way `--rate` is when nothing is replayed.
+fn screenshot(path: Option<PathBuf>, after: u64) -> Option<xtce_gs_gui::Screenshot> {
+    path.map(|path| xtce_gs_gui::Screenshot {
+        path,
+        after: Duration::from_secs(after),
+    })
+}
+
 /// Turns one parsed command line into one thing done.
 ///
 /// The conversions happen *here* rather than inside [`run`], so that a configuration nothing
@@ -96,7 +110,8 @@ fn dispatch(cli: Cli) -> Result<(), CliError> {
             if args.headless {
                 run::headless(config, verbose)
             } else {
-                run::gui(config)
+                let shot = screenshot(args.screenshot, args.screenshot_after);
+                run::gui(config, shot)
             }
         }
 
@@ -105,7 +120,8 @@ fn dispatch(cli: Cli) -> Result<(), CliError> {
             if args.headless {
                 run::headless(config, verbose)
             } else {
-                run::gui(config)
+                let shot = screenshot(args.screenshot, args.screenshot_after);
+                run::gui(config, shot)
             }
         }
 
