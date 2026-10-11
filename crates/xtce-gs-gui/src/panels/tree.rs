@@ -260,6 +260,17 @@ pub fn show(ui: &mut egui::Ui, tree: &mut Tree, db: &XtceDb, now: Utc, plots: us
 
     // One buffer for the hover text of every row drawn this frame, rather than one per row.
     let mut hover = String::new();
+    if truncated > 0 {
+        // Before the scroll area and not after it. `auto_shrink([false, false])` takes every
+        // remaining point of height, so a line added afterwards is laid out past the clip rect
+        // and never drawn — which is what happened: an operator searching a 9 493-parameter
+        // definition saw 512 rows and nothing to say the other 8 981 existed. A bottom strip
+        // claims its height first and leaves the rest to scroll.
+        egui::Panel::bottom("tree_truncated").show(ui, |ui| {
+            ui.weak(format!("… and {truncated} more, narrow the search"));
+        });
+    }
+
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .show_rows(ui, ROW_HEIGHT, rows, |ui, range| {
@@ -274,12 +285,6 @@ pub fn show(ui: &mut egui::Ui, tree: &mut Tree, db: &XtceDb, now: Utc, plots: us
                 }
             }
         });
-
-    if truncated > 0 {
-        // The count is the whole point: an operator who cannot see it does not know whether
-        // to narrow the search.
-        ui.weak(format!("… and {truncated} more, narrow the search"));
-    }
 
     action
 }
