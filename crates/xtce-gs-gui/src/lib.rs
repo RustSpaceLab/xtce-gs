@@ -30,6 +30,7 @@
 //!   not pop up, sound, or acknowledge. A station that interrupted the operator would be a
 //!   station they mute.
 
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)]

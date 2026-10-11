@@ -34,6 +34,7 @@
 //! every real downlink has them. A recording is bytes and nothing else, so that it replays
 //! through the same source that wrote it.
 
+#![deny(missing_docs)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)]
