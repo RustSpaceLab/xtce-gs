@@ -52,6 +52,14 @@ pub enum CliError {
     /// A file said no, or the reactor would not build.
     #[error("{0}")]
     Io(#[from] std::io::Error),
+
+    /// The pass ended because something broke, not because it was over.
+    ///
+    /// Separate from [`CliError::Engine`] because it is not a session that would not start —
+    /// it is one that started, ran, and stopped for a reason a supervisor has to be able to
+    /// see in the exit code.
+    #[error("{0}")]
+    Pass(String),
 }
 
 fn main() -> ExitCode {

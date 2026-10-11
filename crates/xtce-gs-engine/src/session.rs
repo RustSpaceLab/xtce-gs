@@ -51,7 +51,7 @@
 use std::collections::VecDeque;
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, RwLock};
 
 use tokio::runtime::Handle;
@@ -125,6 +125,52 @@ pub fn log(events: &Mutex<EventLog>, event: Event) {
     guard.push(event);
 }
 
+/// Why acquisition stopped, or that it has not.
+///
+/// [`Session::is_running`] answers whether, and that is all a window needs: an operator can
+/// read the event log. A process cannot. `xtce-gs run --headless --record` under a supervisor
+/// has to tell a pass that finished from one whose source never opened, and both of those end
+/// with the same `false`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u8)]
+pub enum Outcome {
+    /// Still acquiring.
+    Running = 0,
+    /// The source ran out, which for a file replay is the end of the pass.
+    Ended = 1,
+    /// [`Session::shutdown`] was called, or a stop signal arrived.
+    Stopped = 2,
+    /// The source could not be opened, or it died and did not come back.
+    SourceFailed = 3,
+    /// The decode thread is gone, so nothing below acquisition is running.
+    DecoderGone = 4,
+}
+
+impl Outcome {
+    /// The byte stored in the session's atomic.
+    const fn code(self) -> u8 {
+        self as u8
+    }
+
+    /// The outcome a stored byte means. An unknown byte reads as [`Outcome::Running`], which
+    /// is the answer that makes a caller wait rather than draw a conclusion.
+    const fn from_code(code: u8) -> Self {
+        match code {
+            1 => Self::Ended,
+            2 => Self::Stopped,
+            3 => Self::SourceFailed,
+            4 => Self::DecoderGone,
+            _ => Self::Running,
+        }
+    }
+
+    /// Whether this ending is one a process should report as a failure.
+    #[must_use]
+    pub const fn is_failure(self) -> bool {
+        matches!(self, Self::SourceFailed | Self::DecoderGone)
+    }
+}
+
 /// A running station: one definition, one source, one store.
 ///
 /// Cheap to clone *around* — every field the interface touches is an `Arc` — but not `Clone`
@@ -139,6 +185,8 @@ pub struct Session {
     /// What the acquisition task actually opened, which is not always what was configured.
     source: Arc<RwLock<String>>,
     running: Arc<AtomicBool>,
+    /// Why acquisition stopped — see [`Outcome`].
+    outcome: Arc<AtomicU8>,
     dropped: Arc<AtomicU64>,
     stop: watch::Sender<bool>,
 }
@@ -204,6 +252,7 @@ impl Session {
         let events = Arc::new(Mutex::new(EventLog::with_capacity(config.event_capacity)));
         let stats = Arc::new(LinkStats::new());
         let running = Arc::new(AtomicBool::new(true));
+        let outcome = Arc::new(AtomicU8::new(Outcome::Running.code()));
         let dropped = Arc::new(AtomicU64::new(0));
 
         let (packets_tx, packets_rx) = mpsc::channel::<Acquired>(PACKET_QUEUE_DEPTH);
@@ -242,6 +291,7 @@ impl Session {
             stats: Arc::clone(&stats),
             events: Arc::clone(&events),
             running: Arc::clone(&running),
+            outcome: Arc::clone(&outcome),
             stop: stop_rx,
             queue: Dispatch::new(
                 packets_tx,
@@ -261,6 +311,7 @@ impl Session {
             events,
             limits,
             running,
+            outcome,
             dropped,
             stop: stop_tx,
         })
@@ -352,6 +403,15 @@ impl Session {
         self.running.load(Ordering::Relaxed)
     }
 
+    /// Why acquisition stopped, or [`Outcome::Running`] while it has not.
+    ///
+    /// [`Session::is_running`] says whether; this says which ending, because two of them are
+    /// failures and a process that exits zero on either is a pass nobody knows was lost.
+    #[must_use]
+    pub fn outcome(&self) -> Outcome {
+        Outcome::from_code(self.outcome.load(Ordering::Relaxed))
+    }
+
     /// Asks both tasks to stop.
     ///
     /// A request, not a join: this returns immediately and the tasks notice at their next
@@ -374,6 +434,12 @@ impl Session {
     /// `read_chunk` would be lost and the task would read the socket forever. A watch holds
     /// the value, so the task sees it whenever it next looks.
     pub fn shutdown(&self) {
+        let _ = self.outcome.compare_exchange(
+            Outcome::Running.code(),
+            Outcome::Stopped.code(),
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        );
         self.running.store(false, Ordering::Relaxed);
         // `send` fails once every receiver is gone, which is the normal state of a session
         // whose tasks have already ended. `send_replace` cannot fail, and shutting down twice
@@ -562,6 +628,7 @@ struct Acquisition {
     stats: Arc<LinkStats>,
     events: Arc<Mutex<EventLog>>,
     running: Arc<AtomicBool>,
+    outcome: Arc<AtomicU8>,
     stop: watch::Receiver<bool>,
     queue: Dispatch,
 }
@@ -672,10 +739,24 @@ fn report_decoder_gone(task: &Acquisition) {
     }
 }
 
+/// Records how acquisition ended, unless an ending was already recorded.
+///
+/// First writer wins: a source that died and then had its queue drained ran through two of
+/// these, and the first is the one that explains the pass.
+fn finish(slot: &AtomicU8, outcome: Outcome) {
+    let _ = slot.compare_exchange(
+        Outcome::Running.code(),
+        outcome.code(),
+        Ordering::Relaxed,
+        Ordering::Relaxed,
+    );
+}
+
 async fn acquire(mut task: Acquisition) {
     let _running = RunningGuard(Arc::clone(&task.running));
 
     let Some((mut source, mut recorder)) = open(&mut task).await else {
+        finish(&task.outcome, Outcome::SourceFailed);
         return;
     };
 
@@ -687,16 +768,21 @@ async fn acquire(mut task: Acquisition) {
     loop {
         let stopped = *task.stop.borrow();
         if stopped {
+            finish(&task.outcome, Outcome::Stopped);
             break;
         }
         if task.queue.flush().is_err() {
             report_decoder_gone(&task);
+            finish(&task.outcome, Outcome::DecoderGone);
             break;
         }
 
         let read = tokio::select! {
             biased;
-            _ = task.stop.changed() => break,
+            _ = task.stop.changed() => {
+                finish(&task.outcome, Outcome::Stopped);
+                break;
+            }
             // Room appeared while nothing was arriving. Without this arm a burst followed by
             // silence would leave the ring's packets sitting behind a full channel until the
             // next byte off the link, which on a pass that has just ended is never. The
@@ -724,6 +810,7 @@ async fn acquire(mut task: Acquisition) {
                     log(&task.events, event);
                 }
                 log(&task.events, Event::info("session", "the source ended"));
+                finish(&task.outcome, Outcome::Ended);
                 let _ = task.queue.drain(&mut task.stop).await;
                 break;
             }
@@ -736,6 +823,7 @@ async fn acquire(mut task: Acquisition) {
                         &task.events,
                         Event::error("session", "the source is gone; the session has stopped"),
                     );
+                    finish(&task.outcome, Outcome::SourceFailed);
                     break;
                 }
                 buffer.clear();
@@ -755,6 +843,7 @@ async fn acquire(mut task: Acquisition) {
         .is_err()
         {
             report_decoder_gone(&task);
+            finish(&task.outcome, Outcome::DecoderGone);
             break;
         }
         buffer.clear();
@@ -1042,6 +1131,7 @@ mod tests {
                 limits: LimitSet::new(),
                 source: Arc::new(RwLock::new("none".to_owned())),
                 running: Arc::new(AtomicBool::new(true)),
+                outcome: Arc::new(AtomicU8::new(Outcome::Running.code())),
                 dropped: Arc::new(AtomicU64::new(0)),
                 stop,
             }
@@ -1156,6 +1246,50 @@ mod tests {
         assert!(!session.is_running());
         // And once more through `Drop`, which is the third call.
         drop(session);
+    }
+
+    #[test]
+    fn an_idle_session_has_not_ended_and_a_shut_down_one_ended_by_being_stopped() {
+        let session = Session::idle();
+        assert_eq!(session.outcome(), Outcome::Running);
+        assert!(!session.outcome().is_failure());
+        session.shutdown();
+        assert_eq!(session.outcome(), Outcome::Stopped);
+        assert!(!session.outcome().is_failure());
+    }
+
+    /// Only the first ending is kept, because two of them can run in one stop: a source that
+    /// died is also a queue that then drains.
+    #[test]
+    fn the_ending_that_explains_the_pass_is_the_first_one_recorded() {
+        let slot = AtomicU8::new(Outcome::Running.code());
+        finish(&slot, Outcome::SourceFailed);
+        finish(&slot, Outcome::Stopped);
+        assert_eq!(
+            Outcome::from_code(slot.load(Ordering::Relaxed)),
+            Outcome::SourceFailed
+        );
+    }
+
+    /// The two endings a process has to tell apart, and which of them is a failure.
+    #[test]
+    fn a_source_that_never_opened_is_a_failure_and_a_source_that_ran_out_is_not() {
+        assert!(Outcome::SourceFailed.is_failure());
+        assert!(Outcome::DecoderGone.is_failure());
+        assert!(!Outcome::Ended.is_failure());
+        assert!(!Outcome::Stopped.is_failure());
+        assert!(!Outcome::Running.is_failure());
+    }
+
+    #[test]
+    fn an_unknown_outcome_byte_reads_as_still_running() {
+        for code in 0..=255u8 {
+            let outcome = Outcome::from_code(code);
+            if code > 4 {
+                assert_eq!(outcome, Outcome::Running, "code {code}");
+            }
+            assert_eq!(Outcome::from_code(outcome.code()), outcome);
+        }
     }
 
     /// A session shut down before the acquisition task is ever polled opens nothing.

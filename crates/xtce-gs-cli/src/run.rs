@@ -92,6 +92,11 @@ pub fn gui(config: SessionConfig, startup: xtce_gs_gui::Startup) -> Result<(), C
 /// replay that reached the end is a successful exit, not an error — the pass is over, and its
 /// counters are the result.
 ///
+/// A source that never opened, or that died and did not come back, is not. Both of those used
+/// to end the same way as a finished pass — `is_running` false, exit zero — so a station under
+/// `Restart=on-failure` that recorded nothing looked exactly like one that had recorded a
+/// whole pass. [`xtce_gs_engine::Outcome`] is what tells them apart now.
+///
 /// # Errors
 ///
 /// [`CliError::Engine`] for a session that will not start, [`CliError::Io`] for a reactor that
@@ -135,7 +140,20 @@ pub fn headless(config: SessionConfig, verbose: bool) -> Result<(), CliError> {
                 }
             }
         }
-        Ok(())
+        // The ending, not merely that there was one. A source that never opened and a
+        // replay that reached the end of its file both leave `is_running` false, and a
+        // supervisor restarting on failure has to tell them apart.
+        match session.outcome() {
+            outcome if outcome.is_failure() => Err(CliError::Pass(format!(
+                "the pass stopped: {}",
+                match outcome {
+                    xtce_gs_engine::Outcome::SourceFailed =>
+                        "the source could not be opened, or it died and did not come back",
+                    _ => "the decode thread is gone",
+                }
+            ))),
+            _ => Ok(()),
+        }
     });
 
     session.shutdown();

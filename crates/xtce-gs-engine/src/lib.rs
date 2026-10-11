@@ -71,4 +71,4 @@ pub use decode::{PacketDecoder, SequenceTracker, empty_batch, project};
 pub use error::EngineError;
 pub use record::{Recorder, write_batch, write_history, write_snapshot};
 pub use sctime::SpacecraftClock;
-pub use session::{Session, Waker};
+pub use session::{Outcome, Session, Waker};
