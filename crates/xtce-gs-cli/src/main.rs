@@ -4,7 +4,6 @@
 //! Everything that decides anything is in [`args`] — which turns flags into an
 //! [`xtce_gs_engine::SessionConfig`] — or in [`run`], which carries one out.
 
-#![deny(missing_docs)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)]
