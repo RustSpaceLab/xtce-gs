@@ -28,9 +28,9 @@ One binary, and here is what that is worth measured rather than claimed:
 
 ```console
 $ cargo build --release -p xtce-gs-cli && ls -l target/release/xtce-gs
-9928976        # 9.47 MiB, macOS x86_64, unstripped
+10053824       # 9.59 MiB, macOS x86_64, unstripped
 $ strip target/release/xtce-gs && ls -l target/release/xtce-gs
-8595272        # 8.20 MiB stripped
+8704096        # 8.30 MiB stripped
 ```
 
 Measured with rustc 1.99.0; the toolchain and the dependency tree both move these by a few
