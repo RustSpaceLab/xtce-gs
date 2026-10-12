@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 # egui 0.35 sets this floor, not this project: `xtce-rs` and `xtce-flight` still declare 1.85
 # and nothing here needs a newer language feature. Raise it only when a dependency forces it,
@@ -27,8 +27,8 @@ xtce-gs-gui = { path = "crates/xtce-gs-gui", version = "0.1.0" }
 #
 # Bump both together, in the same commit as the change that needed them, and push `xtce-rs`
 # first — cargo cannot fetch a commit that is not on the remote.
-xtce-model = { git = "https://github.com/RustSpaceLab/xtce-rs", rev = "c9c780e805db686502f695f55b0c0f3de9afc90e" }
-xtce-decode = { git = "https://github.com/RustSpaceLab/xtce-rs", rev = "c9c780e805db686502f695f55b0c0f3de9afc90e" }
+xtce-model = { git = "https://github.com/RustSpaceLab/xtce-rs", rev = "17671eaf4ea8aa9fb17c096001b39ecd88e77059" }
+xtce-decode = { git = "https://github.com/RustSpaceLab/xtce-rs", rev = "17671eaf4ea8aa9fb17c096001b39ecd88e77059" }
 
 # Keep this list short and justified — see CONTRIBUTING.md rule 7. Every entry below names
 # the thing it does that this project will not do by hand.
