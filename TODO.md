@@ -6,7 +6,7 @@ This file is the index: the identifier, where it is, and one line of what it is.
 
 ```console
 $ grep -rn "TODO(gs-link-rs-erasures)" crates/     # the full text of any entry
-$ grep -rn "TODO(" crates/ | wc -l                 # 29 of them, over 21 identifiers
+$ grep -rn "TODO(" crates/ | wc -l                 # 28 of them, over 20 identifiers
 ```
 
 Nothing here is a bug. The bugs found while building this are in
@@ -19,12 +19,11 @@ Ordered by how much you learn per hour spent, not by importance.
 
 | | Entry | Why it is a good one to pick up |
 |---|---|---|
-| 1 | `gs-link-frame-sh-zero` | A secondary header of length zero is malformed (§4.1.3.2 says 1–63 octets) and is accepted. Small, self-contained, and it makes you read one page of a Blue Book and decide what a malformed frame costs. |
-| 2 | `gs-gui-layout` (`layout.rs:159`) | A panel the operator drags wider is narrow again next run. egui 0.35 has no public accessor for the dragged size, so the answer is to read it off the panel's own response rect — which means finding out how egui reports what it laid out. |
-| 3 | `gs-engine-sctime-submilli` | A sub-millisecond field is refused on its width and not its value, so an out-of-range count pushes the instant past the millisecond it belongs in. Needs a ruling: drop the sample, or clamp it. |
-| 4 | `gs-link-rs-shortened` | Virtual fill, CCSDS 131.0-B-5 §4.3.7. The arithmetic is a `pad` count; the work is threading a config field through `RsConfig` into the Chien search. Real Reed-Solomon work with a small blast radius. |
-| 5 | `gs-link-frame-aos` | AOS transfer frames (CCSDS 732.0-B), which is what a great many CubeSats actually downlink. A second parser and a `Framing::AosFrames`, and the decision is whether the pipeline keeps one frame type with a discriminant or two. The biggest thing left that is not gated on hardware. |
-| 6 | `gs-link-rs-erasures` | 2E erasures instead of E errors is most of the coding gain on a fading link. Needs a demodulator that reports confidence, which needs the link's input type to change. Do it when you have a radio that tells you. |
+| 1 | `gs-gui-layout` (`layout.rs:159`) | A panel the operator drags wider is narrow again next run. egui 0.35 has no public accessor for the dragged size, so the answer is to read it off the panel's own response rect — which means finding out how egui reports what it laid out. |
+| 2 | `gs-engine-sctime-submilli` | A sub-millisecond field is refused on its width and not its value, so an out-of-range count pushes the instant past the millisecond it belongs in. Needs a ruling: drop the sample, or clamp it. |
+| 3 | `gs-link-rs-shortened` | Virtual fill, CCSDS 131.0-B-5 §4.3.7. The arithmetic is a `pad` count; the work is threading a config field through `RsConfig` into the Chien search. Real Reed-Solomon work with a small blast radius. |
+| 4 | `gs-link-frame-aos` | AOS transfer frames (CCSDS 732.0-B), which is what a great many CubeSats actually downlink. A second parser and a `Framing::AosFrames`, and the decision is whether the pipeline keeps one frame type with a discriminant or two. The biggest thing left that is not gated on hardware. |
+| 5 | `gs-link-rs-erasures` | 2E erasures instead of E errors is most of the coding gain on a fading link. Needs a demodulator that reports confidence, which needs the link's input type to change. Do it when you have a radio that tells you. |
 
 ## `xtce-gs-link`
 
@@ -36,7 +35,6 @@ Ordered by how much you learn per hour spent, not by importance.
 | `gs-link-rs-shortened` | `rs.rs:804` | Virtual fill for shortened codeblocks. Needs a `virtual_fill` on `RsConfig` first; inferring it from the frame length is wrong. |
 | `gs-link-frame-aos` | `frame.rs:220` | AOS frames (CCSDS 732.0-B) are refused at the version check rather than misread. Its VCID is six bits, so it needs a second parser, not a widened field. |
 | `gs-link-frame-vca` | `frame.rs:298` | A frame with the sync flag set carries VCA service data, not packets, and its first-header-pointer is undefined. Decide whether the pipeline drops such frames or routes them. |
-| `gs-link-frame-sh-zero` | `frame.rs:347` | A secondary header of length zero is malformed (§4.1.3.2 says 1–63 octets) and is accepted rather than refused. |
 | `gs-link-frame-ocf-mismatch` | `frame.rs:377` | A frame whose OCF flag disagrees with the configuration is decoded by the flag and not reported. Decide: per frame (noisy) or latched per virtual channel. |
 | `gs-link-packets` | `packets.rs:495` | Does any mission send only-idle-data frames *between* the frames of one long packet? Guessing wrong either splices two packets or loses one per idle frame. |
 | `gs-link-csp` | `csp.rs:288` | An RDP packet is passed through with its five-octet trailer still on the payload, which desynchronises the packet stream behind it. Refuse or strip. |

@@ -15,10 +15,10 @@ repository = "https://github.com/RustSpaceLab/xtce-gs"
 authors = ["Maciej Myszkiewicz"]
 
 [workspace.dependencies]
-xtce-gs-core = { path = "crates/xtce-gs-core", version = "0.1.0" }
-xtce-gs-link = { path = "crates/xtce-gs-link", version = "0.1.0" }
-xtce-gs-engine = { path = "crates/xtce-gs-engine", version = "0.1.0" }
-xtce-gs-gui = { path = "crates/xtce-gs-gui", version = "0.1.0" }
+xtce-gs-core = { path = "crates/xtce-gs-core", version = "0.1.1" }
+xtce-gs-link = { path = "crates/xtce-gs-link", version = "0.1.1" }
+xtce-gs-engine = { path = "crates/xtce-gs-engine", version = "0.1.1" }
+xtce-gs-gui = { path = "crates/xtce-gs-gui", version = "0.1.1" }
 
 # Pinned to a revision, not a branch, and not a path. `xtce-rs` is where the decoder lives and
 # this repository is built against one state of it; a moving dependency would mean an
