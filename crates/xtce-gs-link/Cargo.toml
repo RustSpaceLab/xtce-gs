@@ -10,6 +10,7 @@ authors.workspace = true
 
 [dependencies]
 xtce-gs-core.workspace = true
+xtce-pus.workspace = true
 tokio.workspace = true
 thiserror.workspace = true
 

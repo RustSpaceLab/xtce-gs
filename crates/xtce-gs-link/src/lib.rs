@@ -74,6 +74,7 @@ pub mod error;
 pub mod frame;
 pub mod packets;
 pub mod pipeline;
+pub mod pus;
 pub mod rs;
 pub mod source;
 pub mod sync;
@@ -84,6 +85,10 @@ pub use error::LinkError;
 pub use frame::{FrameError, FrameOptions, TmFrame, crc16_ccitt};
 pub use packets::{PacketAssembler, PacketCounters, PacketStream, VirtualChannel};
 pub use pipeline::{Framing, Pipeline, PipelineConfig, RsConfig};
+pub use pus::{
+    AckFlags, CucTimestamp, PusError, PusHeader, PusPacket, PusService, inspect_pus_bytes,
+    inspect_raw_packet, verify_crc16_ccitt, verify_raw_packet_crc,
+};
 pub use rs::{ReedSolomon, RsError};
 pub use source::{
     FileReplay, RateLimiter, Source, SourceSpec, TcpListenSource, TcpSource, UdpSource,
