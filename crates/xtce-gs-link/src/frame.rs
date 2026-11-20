@@ -119,13 +119,16 @@ impl<'a> TmFrame<'a> {
 
         // Everything between the insert zone and the trailers: the secondary header and the
         // data field share it, so a secondary header longer than this has eaten the checksum.
+        // CCSDS 132.0-B-3 §4.1.3.1.3 b) also requires the secondary header data field to carry
+        // 1 to 63 octets, so the six-bit length field cannot be zero and a one-octet secondary
+        // header is malformed.
         let available = bytes
             .len()
             .saturating_sub(PRIMARY_HEADER_BYTES)
             .saturating_sub(options.insert_zone)
             .saturating_sub(frame.trailer_bytes());
         let declared = frame.secondary_header_bytes();
-        if declared > available {
+        if (frame.secondary_header_flag() && declared < 2) || declared > available {
             return Err(FrameError::BadSecondaryHeader {
                 declared,
                 available,
@@ -344,13 +347,6 @@ impl<'a> TmFrame<'a> {
         PRIMARY_HEADER_BYTES.saturating_add(self.options.insert_zone)
     }
 
-    // TODO(gs-link-frame-sh-zero): CCSDS 132.0-B-3 §4.1.3.1.3 b) gives the secondary header data
-    // field 1 to 63 octets, so the six-bit length field should never be zero and a one-octet
-    // secondary header is malformed. It is accepted here as one octet rather than refused,
-    // because refusing costs the frame and nothing downstream reads the secondary header.
-    // Refusing it needs a `FrameError` variant and a decision about whether the frame's packets
-    // are still worth having; the same question covers the two version bits of that octet, which
-    // §4.1.3.2.2.2 requires to be `00` and which are not checked either.
     /// Length of the whole frame secondary header, its identification octet included.
     ///
     /// CCSDS 132.0-B-3 §4.1.3.2.3.2: the low six bits of the first octet hold one less than
@@ -523,7 +519,7 @@ pub enum FrameError {
         version: u8,
     },
 
-    /// The secondary header declares a length that does not fit in the frame.
+    /// The secondary header declares a length that is malformed or does not fit in the frame.
     #[error("frame secondary header declares {declared} bytes, {available} available")]
     BadSecondaryHeader {
         /// Length the header declares, its identification octet included.
@@ -816,6 +812,24 @@ mod tests {
         assert_eq!(
             TmFrame::parse(&bytes, PLAIN).unwrap_err(),
             FrameError::BadVersion { version: 1 }
+        );
+    }
+
+    #[test]
+    fn a_secondary_header_with_no_data_field_is_refused() {
+        // CCSDS 132.0-B-3 §4.1.3.1.3 b): the secondary header data field is 1 to 63 octets,
+        // so a secondary header declaring only its identification octet (low six bits zero)
+        // is malformed.
+        let mut bytes = vec![0x00, 0x00, 0x00, 0x00, 0x98, 0x00];
+        bytes.push(0x00);
+        bytes.extend_from_slice(&[0x00; 7]);
+        let bytes = seal(bytes);
+        assert_eq!(
+            TmFrame::parse(&bytes, PLAIN).unwrap_err(),
+            FrameError::BadSecondaryHeader {
+                declared: 1,
+                available: 8
+            }
         );
     }
 
